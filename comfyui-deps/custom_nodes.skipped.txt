@@ -1,0 +1,8 @@
+torch  # pinned (torch/vision/audio/xformers)
+https://archive1.piwheels.org/simple/mmcv/mmcv-2.1.0-py2.py3-none-any.whl#sha256=3b4e4836676290d1f15f0a36b770572e0463024e269c451e48a3686c63c211fb  # skipped (platform-specific link)
+torch>=2.0.0  # pinned (torch/vision/audio/xformers)
+https://github.com/woct0rdho/triton-windows/releases/download/v3.1.0-windows.post8/triton-3.1.0-cp312-cp312-win_amd64.whl; sys_platform == "win64" and (python_version >= "3.12" and python_version < "3.13")  # skipped (platform-specific link)
+https://github.com/woct0rdho/triton-windows/releases/download/v3.1.0-windows.post8/triton-3.1.0-cp311-cp311-win_amd64.whl; sys_platform == "win64" and (python_version >= "3.11" and python_version < "3.12")  # skipped (platform-specific link)
+https://github.com/woct0rdho/triton-windows/releases/download/v3.1.0-windows.post8/triton-3.1.0-cp310-cp310-win_amd64.whl; sys_platform == "win64" and (python_version >= "3.10" and python_version < "3.11")  # skipped (platform-specific link)
+https://github.com/woct0rdho/triton-windows/releases/download/v3.1.0-windows.post8/triton-3.1.0-cp38-cp38-win_amd64.whl; sys_platform == "win64" and (python_version >= "3.8" and python_version < "3.9")  # skipped (platform-specific link)
+torchvision  # pinned (torch/vision/audio/xformers)
