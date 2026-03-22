@@ -5,14 +5,11 @@ set -euo pipefail
 ROOT_DST="r2-assets:comfyui-assets/ComfyUI"
 CN_DST="$ROOT_DST/custom_nodes"
 
-# ====== Detect local ComfyUI root ======
-if [[ -d "/root/ComfyUI" ]]; then
-  ROOT_SRC="/root/ComfyUI"
-elif [[ -d "/workspace/ComfyUI" ]]; then
-  ROOT_SRC="/workspace/ComfyUI"
-else
-  echo "[ERROR] Cannot find local ComfyUI directory at /root/ComfyUI or /workspace/ComfyUI"
-  echo "        Please set ROOT_SRC manually in this script."
+# ====== Local ComfyUI root fixed ======
+ROOT_SRC="/root/ComfyUI"
+
+if [[ ! -d "$ROOT_SRC" ]]; then
+  echo "[ERROR] Cannot find local ComfyUI directory at $ROOT_SRC"
   exit 1
 fi
 
