@@ -94,7 +94,7 @@ def install(clean: list[str]) -> None:
     run(["python", "-m", "pip", "install", "-U", "pip", "setuptools", "wheel"])
 
     # Install ComfyUI root requirements first
-    root_req = BASE / "requirements.txt"
+    root_req = BASE.parent / "requirements.txt"
     if root_req.exists():
         print("[auto_deps] installing ComfyUI root requirements:", root_req)
         run(["python", "-m", "pip", "install", "-r", str(root_req)])
