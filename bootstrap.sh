@@ -44,10 +44,16 @@ echo "== [3/5] conda env =="
 # shellcheck disable=SC1091
 source "$(conda info --base)/etc/profile.d/conda.sh"
 
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main || true
+conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r || true
+
 if ! conda env list | awk '{print $1}' | grep -qx "$ENV_NAME"; then
   conda create -y -n "$ENV_NAME" "python=${PY_VER}"
 fi
+
 conda activate "$ENV_NAME"
+
+command -v nvidia-smi >/dev/null && nvidia-smi || echo "[WARN] nvidia-smi not found"
 
 echo "== [4/5] pip install torch/cu121 + xformers =="
 python -m pip install -U pip setuptools wheel
