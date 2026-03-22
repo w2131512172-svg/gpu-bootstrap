@@ -77,4 +77,21 @@ print("cuda avail =", torch.cuda.is_available())
 print("cuda ver   =", torch.version.cuda)
 PY
 
+# ====== Conda auto-init & auto-activate ======
+echo "== [6/6] shell setup =="
+
+"$HOME/miniconda3/bin/conda" init bash
+"$HOME/miniconda3/bin/conda" config --set auto_activate_base false
+
+if ! grep -q 'conda activate torch251-cu121' "$HOME/.bashrc"; then
+  cat >> "$HOME/.bashrc" <<'EOF'
+
+# Auto-activate project env
+if [ -f "$HOME/miniconda3/etc/profile.d/conda.sh" ]; then
+  . "$HOME/miniconda3/etc/profile.d/conda.sh"
+  conda activate torch251-cu121
+fi
+EOF
+fi
+
 echo "DONE."
