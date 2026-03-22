@@ -93,6 +93,14 @@ def install(clean: list[str]) -> None:
     # Upgrade tooling first
     run(["python", "-m", "pip", "install", "-U", "pip", "setuptools", "wheel"])
 
+    # Install ComfyUI root requirements first
+    root_req = BASE / "requirements.txt"
+    if root_req.exists():
+        print("[auto_deps] installing ComfyUI root requirements:", root_req)
+        run(["python", "-m", "pip", "install", "-r", str(root_req)])
+    else:
+        print("[auto_deps] WARN: ComfyUI root requirements.txt not found:", root_req)
+
     if normal:
         # Install normal deps in one go
         run(["python", "-m", "pip", "install", "--upgrade"] + normal)
