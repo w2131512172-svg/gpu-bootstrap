@@ -32,7 +32,7 @@ if ! command -v conda >/dev/null 2>&1; then
     mkdir -p /tmp/miniconda_install
     cd /tmp/miniconda_install
 
-    wget -O miniconda.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+    wget -O miniconda.sh https://repo.anaconda.com/miniconda/Miniconda3-py310_24.1.2-0-Linux-x86_64.sh
     bash miniconda.sh -b -p "${MINICONDA_DIR}"
     rm -f miniconda.sh
 
