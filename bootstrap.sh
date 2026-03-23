@@ -18,7 +18,19 @@ apt-get install -y \
   libglib2.0-0 \
   build-essential \
   ca-certificates \
-  bzip2
+  bzip2 \
+  rclone \
+  zip \
+  unzip
+
+echo "== [1.5/5] install cloudflared =="
+if [ ! -x /usr/local/bin/cloudflared ]; then
+  wget -O /tmp/cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
+  chmod +x /tmp/cloudflared
+mv /tmp/cloudflared /usr/local/bin/cloudflared
+else
+  echo "cloudflared already exists: /usr/local/bin/cloudflared"
+fi
 
 echo "== [2/5] ensure conda (miniconda) =="
 
