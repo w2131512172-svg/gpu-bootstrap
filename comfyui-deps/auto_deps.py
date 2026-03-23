@@ -56,6 +56,13 @@ SKIP_PACKAGES = {
     "xformers",
 }
 
+EXTRA_RUNTIME_DEPS = [
+    "torchsde",
+    "spandrel",
+    "kornia",
+    "mmcv-lite",
+]
+
 SKIP_EXACT_LINES = {
     "",
 }
@@ -246,6 +253,9 @@ def install(lines: list[str]) -> None:
     if root_requirements.exists():
         log("install root requirements:", root_requirements)
         install_requirements_file(root_requirements)
+
+    log("install extra runtime deps:", EXTRA_RUNTIME_DEPS)
+    run_cmd([sys.executable, "-m", "pip", "install", *EXTRA_RUNTIME_DEPS])
 
     install_lines(lines)
 
