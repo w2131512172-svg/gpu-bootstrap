@@ -80,16 +80,16 @@ PY
 # ====== Conda auto-init & auto-activate ======
 echo "== [6/6] shell setup =="
 
-"$HOME/miniconda3/bin/conda" init bash
-"$HOME/miniconda3/bin/conda" config --set auto_activate_base false
+"${MINICONDA_DIR}/bin/conda" init bash
+"${MINICONDA_DIR}/bin/conda" config --set auto_activate_base false
 
-if ! grep -q 'conda activate torch251-cu121' "$HOME/.bashrc"; then
-  cat >> "$HOME/.bashrc" <<'EOF'
+if ! grep -q "conda activate ${ENV_NAME}" "$HOME/.bashrc"; then
+  cat >> "$HOME/.bashrc" <<EOF
 
 # Auto-activate project env
-if [ -f "$HOME/miniconda3/etc/profile.d/conda.sh" ]; then
-  . "$HOME/miniconda3/etc/profile.d/conda.sh"
-  conda activate torch251-cu121
+if [ -f "${MINICONDA_DIR}/etc/profile.d/conda.sh" ]; then
+  . "${MINICONDA_DIR}/etc/profile.d/conda.sh"
+  conda activate ${ENV_NAME}
 fi
 EOF
 fi
