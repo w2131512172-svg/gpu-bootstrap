@@ -78,15 +78,18 @@ python -m pip install \
 
 python -m pip install xformers==0.0.27.post2 --no-deps
 
+python -m pip install tomli==2.0.1
+
 echo "== [5/5] healthcheck =="
 python - <<'PY'
-import torch, torchvision, torchaudio, xformers
+import torch, torchvision, torchaudio, xformers, tomli
 print("torch      =", torch.__version__)
 print("torchvision=", torchvision.__version__)
 print("torchaudio =", torchaudio.__version__)
 print("xformers   =", xformers.__version__)
 print("cuda avail =", torch.cuda.is_available())
 print("cuda ver   =", torch.version.cuda)
+print("tomli      =", tomli.__version__)
 PY
 
 # ====== Conda auto-init & auto-activate ======
