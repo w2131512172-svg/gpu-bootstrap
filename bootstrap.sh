@@ -40,7 +40,7 @@ preflight_check() {
     }
 
     # 提取 CUDA Version
-    CUDA_VER=$(echo "$SMI_OUTPUT" | grep -oP 'CUDA Version:\s*\K[0-9.]+')
+    CUDA_VER=$(echo "$SMI_OUTPUT" | grep "CUDA Version" | awk '{for(i=1;i<=NF;i++) if($i=="Version:") print $(i+1)}')
 
     if [ -z "$CUDA_VER" ]; then
         echo "[ERROR] Cannot detect CUDA version"
