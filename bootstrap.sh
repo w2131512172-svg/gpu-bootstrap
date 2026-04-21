@@ -7,6 +7,59 @@ MINICONDA_DIR="${MINICONDA_DIR:-/root/miniconda3}"
 
 export DEBIAN_FRONTEND=noninteractive
 
+preflight_check() {
+
+    # 1. 检查 /etc/os-release
+    if [ ! -f /etc/os-release ]; then
+        echo "[ERROR] Unsupported OS"
+        exit 1
+    fi
+
+    # 2. 检查 uname
+    UNAME=$(uname -a)
+
+    echo "$UNAME" | grep -qi "linux" || {
+        echo "[ERROR] Not a Linux system"
+        exit 1
+    }
+
+    echo "$UNAME" | grep -qi "x86_64" || {
+        echo "[ERROR] Unsupported architecture"
+        exit 1
+    }
+
+    # 3. 检查 nvidia-smi
+    if ! command -v nvidia-smi >/dev/null 2>&1; then
+        echo "[ERROR] nvidia-smi not found"
+        exit 1
+    fi
+
+    SMI_OUTPUT=$(nvidia-smi 2>/dev/null) || {
+        echo "[ERROR] nvidia-smi failed"
+        exit 1
+    }
+
+    # 提取 CUDA Version
+    CUDA_VER=$(echo "$SMI_OUTPUT" | grep -oP 'CUDA Version:\s*\K[0-9.]+')
+
+    if [ -z "$CUDA_VER" ]; then
+        echo "[ERROR] Cannot detect CUDA version"
+        exit 1
+    fi
+
+    # 判断 CUDA >= 12.1
+    REQUIRED=12.1
+
+    # 用 awk 做浮点比较
+    awk "BEGIN {exit !($CUDA_VER >= $REQUIRED)}" || {
+        echo "[ERROR] CUDA too low: $CUDA_VER"
+        exit 1
+    }
+
+}
+
+preflight_check
+
 echo "== [1/5] apt packages =="
 apt-get update
 apt-get install -y \
