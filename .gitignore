@@ -1,0 +1,7 @@
+# === AI Forge tunnel secrets ===
+*.json
+!package.json
+!package-lock.json
+
+# runtime / logs
+*.log
