@@ -3,3 +3,6 @@ spandrel
 kornia
 mmcv-lite
 av
+pandas
+opencv-python
+pydantic-settings
