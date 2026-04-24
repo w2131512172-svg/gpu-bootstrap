@@ -3,4 +3,3 @@ spandrel
 kornia
 mmcv-lite
 av
-pandas
