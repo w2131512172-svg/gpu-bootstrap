@@ -26,6 +26,7 @@ CUSTOM_NODES = COMFYUI_ROOT / "custom_nodes"
 OUT_CLEAN = SCRIPT_DIR / "custom_nodes.clean.txt"
 OUT_SKIPPED = SCRIPT_DIR / "custom_nodes.skipped.txt"
 MANUAL_REQUIREMENTS = SCRIPT_DIR / "manual_requirements.txt"
+COMPAT_REQUIREMENTS = SCRIPT_DIR / "compat_requirements.txt"
 
 
 def log(*parts: object) -> None:
@@ -94,7 +95,13 @@ def build_install_plan(clean: list[str]) -> tuple[list[str], list[str]]:
     else:
         log("manual requirements not found or empty:", MANUAL_REQUIREMENTS)
 
-    merged = dedupe_keep_order(clean + manual)
+    compat = read_requirements_file(COMPAT_REQUIREMENTS)
+    if compat:
+        log("compat lines:", len(compat))
+    else:
+        log("compat requirements not found or empty:", COMPAT_REQUIREMENTS)
+
+    merged = dedupe_keep_order(clean + manual + compat)
     normal, git = split_normal_git(merged)
 
     log("install plan normal:", len(normal))
