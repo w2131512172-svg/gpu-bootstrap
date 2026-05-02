@@ -3,5 +3,5 @@ credentials-file: /root/.cloudflared/__CF_TUNNEL_UUID__.json
 
 ingress:
   - hostname: __CF_HOSTNAME__
-    service: service: http://localhost:__CF_LOCAL_PORT__
+    service: http://localhost:__CF_LOCAL_PORT__
   - service: http_status:404

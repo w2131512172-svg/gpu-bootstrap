@@ -1,14 +1,22 @@
-# === AI Forge tunnel secrets ===
+# ===== secrets =====
+.env
+.env.*
+!/comfyui/.env.example
+
+rclone.conf
 *.json
-!package.json
-!package-lock.json
+.cloudflared/
 
-# runtime / logs
+# ===== runtime =====
+logs/
 *.log
 
-# AI Forge ignore
-ollama-forge/venv/
-ollama-forge/.webui_secret_key
-ollama-forge/config.env
+# ===== ComfyUI data =====
+ComfyUI/models/
+ComfyUI/output/
+ComfyUI/input/
+
+# ===== python =====
 __pycache__/
-*.log
+*.pyc
+.ipynb_checkpoints/
