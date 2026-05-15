@@ -1,21 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ===== AI Forge tunnel config =====
-CF_TUNNEL_NAME="comfy"
+echo "[INFO] stopping cloudflared tunnel..."
 
-if pgrep -af "cloudflared tunnel run ${CF_TUNNEL_NAME}" >/dev/null; then
-  echo "[INFO] stopping tunnel: ${CF_TUNNEL_NAME}"
-  pkill -f "cloudflared.*config.yml.*run ${CF_TUNNEL_NAME}"
-  sleep 2
-else
-  echo "[INFO] tunnel is not running: ${CF_TUNNEL_NAME}"
-  exit 0
-fi
+pkill -9 -f "cloudflared" 2>/dev/null || true
+sleep 2
 
-if pgrep -af "cloudflared tunnel run ${CF_TUNNEL_NAME}" >/dev/null; then
+if pgrep -af "cloudflared" >/dev/null; then
   echo "[ERROR] tunnel still running"
-  pgrep -af "cloudflared tunnel run ${CF_TUNNEL_NAME}"
+  pgrep -af "cloudflared" || true
   exit 1
 else
   echo "[OK] tunnel stopped"
