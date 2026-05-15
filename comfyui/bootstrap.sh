@@ -74,8 +74,9 @@ apt-get install -y \
   bzip2 \
   rclone \
   zip \
-  unzip
-
+  unzip \
+  lsof
+  
 echo "== [1.5/5] install cloudflared =="
 if [ ! -x /usr/local/bin/cloudflared ]; then
   wget -O /tmp/cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
