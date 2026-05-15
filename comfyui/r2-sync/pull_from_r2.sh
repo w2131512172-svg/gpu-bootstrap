@@ -21,11 +21,13 @@ fi
 
 COMFYUI_ROOT="${COMFYUI_ROOT:-/root/ComfyUI}"
 R2_REMOTE="${R2_REMOTE:-r2-assets:comfyui-assets/ComfyUI}"
-LOG_FILE="${LOG_FILE:-/root/rclone_pull_from_r2.log}"
+LOG_DIR="${AI_FORGE_LOG_DIR:-/root/ai_forge_logs}"
+LOG_FILE="${LOG_FILE:-$LOG_DIR/r2_pull.log}"
 
 RCLONE_CONF_SRC="${RCLONE_CONF_SRC:-/root/rclone.conf}"
 RCLONE_CONF_DST="${RCLONE_CONF_DST:-/root/.config/rclone/rclone.conf}"
 
+mkdir -p "$LOG_DIR"
 mkdir -p "$(dirname "$RCLONE_CONF_DST")"
 
 log() {
@@ -42,6 +44,10 @@ if [ "$DRY_RUN" = true ]; then
 fi
 
 # ===== rclone config self-check =====
+if [ -d "$RCLONE_CONF_DST" ]; then
+  die "rclone config path is a directory: $RCLONE_CONF_DST"
+fi
+
 if [ ! -f "$RCLONE_CONF_DST" ]; then
   if [ -f "$RCLONE_CONF_SRC" ]; then
     cp "$RCLONE_CONF_SRC" "$RCLONE_CONF_DST"
@@ -60,6 +66,7 @@ log "============================================================"
 log "[INFO] AI Forge asset pull started"
 log "[INFO] COMFYUI_ROOT=$COMFYUI_ROOT"
 log "[INFO] R2_REMOTE=$R2_REMOTE"
+log "[INFO] LOG_FILE=$LOG_FILE"
 log "============================================================"
 
 SYNC_DIRS=(
