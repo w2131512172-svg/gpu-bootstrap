@@ -22,7 +22,7 @@ nohup cloudflared tunnel --config /root/.cloudflared/config.yml run > /root/clou
 
 sleep 3
 
-if pgrep -f "cloudflared tunnel run" >/dev/null; then
+if pgrep -f "cloudflared.*config.*run" >/dev/null; then
   echo "[OK] tunnel running"
 else
   echo "[ERROR] tunnel failed"
