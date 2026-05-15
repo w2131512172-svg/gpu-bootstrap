@@ -48,35 +48,42 @@ run_step \
   bash "$SCRIPT_DIR/bootstrap.sh"
 
 # ============================================================
-# 2. Data Layer Self-check
+# 2. Restore ComfyUI Core
+# ============================================================
+run_step \
+  "restore ComfyUI core" \
+  bash "$SCRIPT_DIR/restore_comfyui_core.sh"
+
+# ============================================================
+# 3. Data Layer Self-check
 # ============================================================
 run_step \
   "R2 self-check" \
   bash "$SCRIPT_DIR/r2-sync/check_r2.sh"
 
 # ============================================================
-# 3. Data Layer Pull
+# 4. Data Layer Pull
 # ============================================================
 run_step \
   "R2 asset pull" \
   bash "$SCRIPT_DIR/r2-sync/pull_from_r2.sh"
 
 # ============================================================
-# 4. Dependency Layer Self-check
+# 5. Dependency Layer Self-check
 # ============================================================
 run_step \
   "dependency self-check" \
   bash "$SCRIPT_DIR/deps/check_deps.sh"
 
 # ============================================================
-# 5. Dependency Install
+# 6. Dependency Install
 # ============================================================
 run_step \
   "dependency install" \
   python "$SCRIPT_DIR/deps/auto_deps.py"
 
 # ============================================================
-# 6. First Service Start
+# 7. First Service Start
 # ============================================================
 run_step \
   "service startup" \
