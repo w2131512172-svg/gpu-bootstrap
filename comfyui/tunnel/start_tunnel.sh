@@ -18,7 +18,7 @@ echo "[INFO] rendering config..."
 ./render_tunnel_config.sh
 
 echo "[INFO] starting tunnel: ${CF_TUNNEL_NAME}"
-nohup cloudflared tunnel run "${CF_TUNNEL_NAME}" > /root/cloudflared.log 2>&1 &
+nohup cloudflared tunnel --config /root/.cloudflared/config.yml run > /root/cloudflared.log 2>&1 &
 
 sleep 3
 
