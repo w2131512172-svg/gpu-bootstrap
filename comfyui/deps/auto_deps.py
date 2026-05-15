@@ -5,16 +5,16 @@ from __future__ import annotations
 
 import argparse
 import os
+import sys
+from datetime import datetime
 from pathlib import Path
 
 from scanner.scan_requirements import scan_requirements
-from scanner.scan_logs import scan_missing_modules
 from scanner.scan_logs import scan_missing_modules
 from rules.normalize import normalize_lines
 from rules.dedupe import dedupe_keep_order
 from rules.filter import split_clean_skipped
 from rules.classify import split_normal_git
-from rules.repair import repair_from_modules
 from rules.repair import repair_from_modules
 from installer.runner import install_all, install_comfyui_requirements
 
@@ -27,6 +27,36 @@ OUT_CLEAN = SCRIPT_DIR / "custom_nodes.clean.txt"
 OUT_SKIPPED = SCRIPT_DIR / "custom_nodes.skipped.txt"
 MANUAL_REQUIREMENTS = SCRIPT_DIR / "manual_requirements.txt"
 COMPAT_REQUIREMENTS = SCRIPT_DIR / "compat_requirements.txt"
+
+LOG_DIR = Path("/root/ai_forge_logs")
+LOG_FILE = LOG_DIR / "auto_deps.log"
+
+
+class Tee:
+    def __init__(self, *streams):
+        self.streams = streams
+
+    def write(self, data):
+        for stream in self.streams:
+            stream.write(data)
+            stream.flush()
+
+    def flush(self):
+        for stream in self.streams:
+            stream.flush()
+
+
+def setup_logging() -> None:
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+
+    log_fp = open(LOG_FILE, "a", encoding="utf-8")
+
+    sys.stdout = Tee(sys.__stdout__, log_fp)
+    sys.stderr = Tee(sys.__stderr__, log_fp)
+
+    print("=" * 60)
+    print("[auto_deps] START:", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    print("[auto_deps] LOG:", LOG_FILE)
 
 
 def log(*parts: object) -> None:
@@ -143,13 +173,17 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    setup_logging()
+
     args = parse_args()
 
     log("script:", SCRIPT_DIR)
     log("root:", COMFYUI_ROOT)
+    log("python:", sys.executable)
 
     if args.repair_log:
         log_path = Path(args.repair_log)
+        log("mode: repair-log")
         log("repair-log:", log_path)
 
         modules = scan_missing_modules(log_path)
@@ -181,13 +215,16 @@ def main() -> None:
         return
 
     if args.scan_only:
+        log("mode: scan-only")
         rescan()
         log("DONE scan-only")
         return
 
     if args.rescan:
+        log("mode: rescan")
         clean, _ = rescan()
     else:
+        log("mode: default")
         clean = load_existing_clean()
 
     normal, git = build_install_plan(clean)
