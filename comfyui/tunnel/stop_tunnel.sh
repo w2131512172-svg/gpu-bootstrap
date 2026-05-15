@@ -6,7 +6,7 @@ CF_TUNNEL_NAME="comfy"
 
 if pgrep -af "cloudflared tunnel run ${CF_TUNNEL_NAME}" >/dev/null; then
   echo "[INFO] stopping tunnel: ${CF_TUNNEL_NAME}"
-  pkill -f "cloudflared tunnel run ${CF_TUNNEL_NAME}"
+  pkill -f "cloudflared.*config.yml.*run ${CF_TUNNEL_NAME}"
   sleep 2
 else
   echo "[INFO] tunnel is not running: ${CF_TUNNEL_NAME}"
