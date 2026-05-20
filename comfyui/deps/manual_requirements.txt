@@ -6,3 +6,4 @@ av
 pandas
 opencv-python
 pydantic-settings
+wget
