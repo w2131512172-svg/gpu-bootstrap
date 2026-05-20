@@ -36,6 +36,79 @@ run_step() {
   fi
 }
 
+prepare_private_configs() {
+  log "============================================================"
+  log "[STEP] prepare private config files"
+  log "============================================================"
+
+  # Some upload panels cannot easily upload a dotfile named .env.
+  # Allow uploading /root/env.txt and normalize it to /root/.env.
+  if [ ! -f /root/.env ] && [ -f /root/env.txt ]; then
+    mv /root/env.txt /root/.env
+    log "[OK] normalized /root/env.txt -> /root/.env"
+  elif [ -f /root/.env ]; then
+    log "[OK] /root/.env exists"
+  else
+    log "[WARN] /root/.env not found; allowed if defaults are enough"
+  fi
+
+  if [ -f /root/.env ]; then
+    chmod 600 /root/.env
+    log "[OK] chmod 600 /root/.env"
+
+    # Load env early so the rest of forge_start can use user overrides.
+    set -a
+    # shellcheck disable=SC1091
+    source /root/.env
+    set +a
+
+    ENV_NAME="${ENV_NAME:-torch251-cu121}"
+    MINICONDA_DIR="${MINICONDA_DIR:-/root/miniconda3}"
+    log "[OK] loaded /root/.env"
+  fi
+
+  # Stage rclone config from the common upload location to rclone's runtime path.
+  local rclone_src="${RCLONE_CONF_SRC:-/root/rclone.conf}"
+  local rclone_dst="${RCLONE_CONF_DST:-/root/.config/rclone/rclone.conf}"
+
+  mkdir -p "$(dirname "$rclone_dst")"
+
+  if [ -d "$rclone_dst" ]; then
+    die "rclone config runtime path is a directory: $rclone_dst"
+  fi
+
+  if [ -f "$rclone_src" ]; then
+    cp "$rclone_src" "$rclone_dst"
+    chmod 600 "$rclone_src" "$rclone_dst"
+    log "[OK] rclone config staged: $rclone_src -> $rclone_dst"
+  elif [ -f "$rclone_dst" ]; then
+    chmod 600 "$rclone_dst"
+    log "[OK] rclone runtime config exists: $rclone_dst"
+  else
+    log "[WARN] rclone config not found yet: $rclone_src or $rclone_dst"
+  fi
+
+  # Stage Cloudflare Tunnel credentials uploaded as /root/*.json.
+  mkdir -p /root/.cloudflared
+
+  shopt -s nullglob
+  local json_files=(/root/*.json)
+  shopt -u nullglob
+
+  if [ "${#json_files[@]}" -gt 0 ]; then
+    local json_file
+    for json_file in "${json_files[@]}"; do
+      cp "$json_file" "/root/.cloudflared/$(basename "$json_file")"
+      chmod 600 "$json_file" "/root/.cloudflared/$(basename "$json_file")"
+      log "[OK] tunnel credential staged: $json_file -> /root/.cloudflared/$(basename "$json_file")"
+    done
+  else
+    log "[WARN] no /root/*.json tunnel credential found yet"
+  fi
+
+  log "[OK] private config preparation completed"
+}
+
 activate_project_env() {
   log "============================================================"
   log "[STEP] activate project conda env"
@@ -66,6 +139,11 @@ log "SCRIPT_DIR=$SCRIPT_DIR"
 log "LOG_DIR=$LOG_DIR"
 log "FORGE_LOG=$FORGE_LOG"
 log "============================================================"
+
+# ============================================================
+# 0. Private Config Preparation
+# ============================================================
+prepare_private_configs
 
 # ============================================================
 # 1. Environment Layer
