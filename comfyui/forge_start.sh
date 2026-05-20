@@ -6,6 +6,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOG_DIR="${AI_FORGE_LOG_DIR:-/root/ai_forge_logs}"
 FORGE_LOG="${FORGE_LOG:-${LOG_DIR}/forge_start.log}"
 
+ENV_NAME="${ENV_NAME:-torch251-cu121}"
+MINICONDA_DIR="${MINICONDA_DIR:-/root/miniconda3}"
+
 mkdir -p "$LOG_DIR"
 
 log() {
@@ -33,6 +36,30 @@ run_step() {
   fi
 }
 
+activate_project_env() {
+  log "============================================================"
+  log "[STEP] activate project conda env"
+  log "[INFO] ENV_NAME=$ENV_NAME"
+  log "[INFO] MINICONDA_DIR=$MINICONDA_DIR"
+  log "============================================================"
+
+  local conda_sh="${MINICONDA_DIR}/etc/profile.d/conda.sh"
+
+  if [ ! -f "$conda_sh" ]; then
+    die "conda.sh not found: $conda_sh"
+  fi
+
+  # shellcheck disable=SC1090
+  source "$conda_sh"
+  conda activate "$ENV_NAME"
+
+  command -v python >/dev/null 2>&1 || die "python not found after conda activate"
+
+  log "[OK] conda env activated: $ENV_NAME"
+  log "[INFO] python: $(command -v python)"
+  log "[INFO] python version: $(python --version 2>&1)"
+}
+
 log "============================================================"
 log "AI Forge full recovery started"
 log "SCRIPT_DIR=$SCRIPT_DIR"
@@ -46,6 +73,10 @@ log "============================================================"
 run_step \
   "environment bootstrap" \
   bash "$SCRIPT_DIR/bootstrap.sh"
+
+# The bootstrap script runs in a child process. Re-activate the
+# project conda env in this parent process so later layers can use python/pip.
+activate_project_env
 
 # ============================================================
 # 2. Restore ComfyUI Core
