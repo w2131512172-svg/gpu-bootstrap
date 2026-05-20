@@ -201,8 +201,8 @@ def main() -> None:
         else:
             log("no new packages added")
 
-        if args.repair_install and added:
-            log("installing manual requirements")
+        if args.repair_install:
+            log("installing repaired dependency plan")
             clean = []
             normal, git = build_install_plan(clean)
             install_all(
