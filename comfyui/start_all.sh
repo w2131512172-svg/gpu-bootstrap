@@ -17,6 +17,9 @@ export CF_HOSTNAME="${CF_HOSTNAME:-comfy.jhinforge.xyz}"
 export CF_LOCAL_PORT="${CF_LOCAL_PORT:-8188}"
 export CF_TUNNEL_NAME="${CF_TUNNEL_NAME:-comfy}"
 
+ENV_NAME="${ENV_NAME:-torch251-cu121}"
+MINICONDA_DIR="${MINICONDA_DIR:-/root/miniconda3}"
+
 COMFY_DIR="${COMFY_DIR:-/root/ComfyUI}"
 LOG_DIR="${AI_FORGE_LOG_DIR:-/root/ai_forge_logs}"
 SERVICE_LOG="${SERVICE_LOG:-${LOG_DIR}/comfyui.log}"
@@ -43,6 +46,26 @@ Commands:
   restart   Restart ComfyUI only, then keep/start tunnel.
   status    Show ComfyUI/tunnel process and port status.
 EOF
+}
+
+activate_project_env() {
+  log "[INFO] activating conda env for service layer: ${ENV_NAME}"
+
+  local conda_sh="${MINICONDA_DIR}/etc/profile.d/conda.sh"
+
+  if [ ! -f "$conda_sh" ]; then
+    die "conda.sh not found: $conda_sh"
+  fi
+
+  # shellcheck disable=SC1090
+  source "$conda_sh"
+  conda activate "$ENV_NAME"
+
+  command -v python >/dev/null 2>&1 || die "python not found after conda activate"
+
+  log "[OK] service conda env activated: ${ENV_NAME}"
+  log "[INFO] python: $(command -v python)"
+  log "[INFO] python version: $(python --version 2>&1)"
 }
 
 kill_wrong_services() {
@@ -85,6 +108,7 @@ stop_comfy() {
 
 start_comfy() {
   kill_wrong_services
+  activate_project_env
 
   if lsof -i :"${CF_LOCAL_PORT}" >/tmp/ai_forge_port.log 2>&1; then
     log "[WARN] port ${CF_LOCAL_PORT} occupied:"
