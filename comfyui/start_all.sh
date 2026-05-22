@@ -19,6 +19,7 @@ export CF_TUNNEL_NAME="${CF_TUNNEL_NAME:-comfy}"
 
 ENV_NAME="${ENV_NAME:-torch251-cu121}"
 MINICONDA_DIR="${MINICONDA_DIR:-/root/miniconda3}"
+COMFY_START_TIMEOUT="${COMFY_START_TIMEOUT:-300}"
 
 COMFY_DIR="${COMFY_DIR:-/root/ComfyUI}"
 LOG_DIR="${AI_FORGE_LOG_DIR:-/root/ai_forge_logs}"
@@ -122,6 +123,7 @@ start_comfy() {
   fi
 
   log "[1/3] starting ComfyUI..."
+  log "[INFO] startup timeout: ${COMFY_START_TIMEOUT}s"
 
   if is_comfy_running; then
     log "[OK] ComfyUI already running on port ${CF_LOCAL_PORT}"
@@ -137,7 +139,7 @@ start_comfy() {
   nohup python main.py --listen 0.0.0.0 --port "${CF_LOCAL_PORT}" \
     > "$SERVICE_LOG" 2>&1 &
 
-  for _ in $(seq 1 30); do
+  for _ in $(seq 1 "$COMFY_START_TIMEOUT"); do
     if curl -fsS "http://127.0.0.1:${CF_LOCAL_PORT}" >/dev/null 2>&1; then
       log "[OK] ComfyUI running on port ${CF_LOCAL_PORT}"
       return 0
@@ -152,7 +154,7 @@ start_comfy() {
     sleep 1
   done
 
-  log "[ERROR] ComfyUI healthcheck failed"
+  log "[ERROR] ComfyUI healthcheck failed after ${COMFY_START_TIMEOUT}s"
   tail -n 120 "$SERVICE_LOG" | tee -a "$START_LOG" || true
   exit 1
 }
