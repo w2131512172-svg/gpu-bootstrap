@@ -6,6 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOG_DIR="${AI_FORGE_LOG_DIR:-/root/ai_forge_logs}"
 FORGE_LOG="${FORGE_LOG:-${LOG_DIR}/forge_start.log}"
 
+TORCH_PROFILE="${TORCH_PROFILE:-auto}"
 ENV_NAME="${ENV_NAME:-torch251-cu121}"
 MINICONDA_DIR="${MINICONDA_DIR:-/root/miniconda3}"
 
@@ -41,8 +42,6 @@ prepare_private_configs() {
   log "[STEP] prepare private config files"
   log "============================================================"
 
-  # Some upload panels cannot easily upload a dotfile named .env.
-  # Allow uploading /root/env.txt and normalize it to /root/.env.
   if [ ! -f /root/.env ] && [ -f /root/env.txt ]; then
     mv /root/env.txt /root/.env
     log "[OK] normalized /root/env.txt -> /root/.env"
@@ -56,18 +55,17 @@ prepare_private_configs() {
     chmod 600 /root/.env
     log "[OK] chmod 600 /root/.env"
 
-    # Load env early so the rest of forge_start can use user overrides.
     set -a
     # shellcheck disable=SC1091
     source /root/.env
     set +a
 
+    TORCH_PROFILE="${TORCH_PROFILE:-auto}"
     ENV_NAME="${ENV_NAME:-torch251-cu121}"
     MINICONDA_DIR="${MINICONDA_DIR:-/root/miniconda3}"
     log "[OK] loaded /root/.env"
   fi
 
-  # Stage rclone config from the common upload location to rclone's runtime path.
   local rclone_src="${RCLONE_CONF_SRC:-/root/rclone.conf}"
   local rclone_dst="${RCLONE_CONF_DST:-/root/.config/rclone/rclone.conf}"
 
@@ -88,7 +86,6 @@ prepare_private_configs() {
     log "[WARN] rclone config not found yet: $rclone_src or $rclone_dst"
   fi
 
-  # Stage Cloudflare Tunnel credentials uploaded as /root/*.json.
   mkdir -p /root/.cloudflared
 
   shopt -s nullglob
@@ -109,9 +106,40 @@ prepare_private_configs() {
   log "[OK] private config preparation completed"
 }
 
+detect_torch_profile() {
+  if [ "$TORCH_PROFILE" != "auto" ]; then
+    log "[INFO] TORCH_PROFILE forced by env: $TORCH_PROFILE"
+    return 0
+  fi
+
+  local detector="$SCRIPT_DIR/detect_torch_profile.sh"
+
+  [ -f "$detector" ] || die "detect_torch_profile.sh not found: $detector"
+
+  TORCH_PROFILE="$(bash "$detector")"
+
+  log "[INFO] detected TORCH_PROFILE=$TORCH_PROFILE"
+
+  case "$TORCH_PROFILE" in
+    cu128)
+      ENV_NAME="${ENV_NAME:-torch-cu128}"
+      ;;
+    cu121)
+      ENV_NAME="${ENV_NAME:-torch251-cu121}"
+      ;;
+    *)
+      die "unsupported TORCH_PROFILE: $TORCH_PROFILE"
+      ;;
+  esac
+
+  export TORCH_PROFILE
+  export ENV_NAME
+}
+
 activate_project_env() {
   log "============================================================"
   log "[STEP] activate project conda env"
+  log "[INFO] TORCH_PROFILE=$TORCH_PROFILE"
   log "[INFO] ENV_NAME=$ENV_NAME"
   log "[INFO] MINICONDA_DIR=$MINICONDA_DIR"
   log "============================================================"
@@ -140,60 +168,50 @@ log "LOG_DIR=$LOG_DIR"
 log "FORGE_LOG=$FORGE_LOG"
 log "============================================================"
 
-# ============================================================
-# 0. Private Config Preparation
-# ============================================================
 prepare_private_configs
 
-# ============================================================
-# 1. Environment Layer
-# ============================================================
+detect_torch_profile
+
+case "$TORCH_PROFILE" in
+  cu128)
+    BOOTSTRAP_SCRIPT="$SCRIPT_DIR/bootstrap-cu128.sh"
+    ;;
+  cu121)
+    BOOTSTRAP_SCRIPT="$SCRIPT_DIR/bootstrap-cu121.sh"
+    ;;
+  *)
+    die "unsupported TORCH_PROFILE: $TORCH_PROFILE"
+    ;;
+esac
+
+log "[INFO] selected bootstrap: $BOOTSTRAP_SCRIPT"
+
 run_step \
   "environment bootstrap" \
-  bash "$SCRIPT_DIR/bootstrap.sh"
+  bash "$BOOTSTRAP_SCRIPT"
 
-# The bootstrap script runs in a child process. Re-activate the
-# project conda env in this parent process so later layers can use python/pip.
 activate_project_env
 
-# ============================================================
-# 2. Restore ComfyUI Core
-# ============================================================
 run_step \
   "restore ComfyUI core" \
   bash "$SCRIPT_DIR/restore_comfyui_core.sh"
 
-# ============================================================
-# 3. Data Layer Self-check
-# ============================================================
 run_step \
   "R2 self-check" \
   bash "$SCRIPT_DIR/r2-sync/check_r2.sh"
 
-# ============================================================
-# 4. Data Layer Pull
-# ============================================================
 run_step \
   "R2 asset pull" \
   bash "$SCRIPT_DIR/r2-sync/pull_from_r2.sh"
 
-# ============================================================
-# 5. Dependency Layer Self-check
-# ============================================================
 run_step \
   "dependency self-check" \
   bash "$SCRIPT_DIR/deps/check_deps.sh"
 
-# ============================================================
-# 6. Dependency Install
-# ============================================================
 run_step \
   "dependency install" \
   python "$SCRIPT_DIR/deps/auto_deps.py"
 
-# ============================================================
-# 7. First Service Start
-# ============================================================
 run_step \
   "service startup" \
   bash "$SCRIPT_DIR/start_all.sh" start
