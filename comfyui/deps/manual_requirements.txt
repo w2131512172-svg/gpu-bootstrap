@@ -8,3 +8,4 @@ opencv-python
 pydantic-settings
 wget
 blend_modes
+onnxruntime-gpu
