@@ -126,8 +126,6 @@ SYNC_DIRS=(
   "deps"
   "user"
   "input"
-  "output2"
-  "lora1"
   "alembic_db"
 )
 
