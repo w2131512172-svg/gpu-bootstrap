@@ -20,6 +20,7 @@ export CF_TUNNEL_NAME="${CF_TUNNEL_NAME:-comfy}"
 ENV_NAME="${ENV_NAME:-torch251-cu121}"
 MINICONDA_DIR="${MINICONDA_DIR:-/root/miniconda3}"
 COMFY_START_TIMEOUT="${COMFY_START_TIMEOUT:-300}"
+COMFY_START_GRACE="${COMFY_START_GRACE:-8}"
 
 COMFY_DIR="${COMFY_DIR:-/root/ComfyUI}"
 LOG_DIR="${AI_FORGE_LOG_DIR:-/root/ai_forge_logs}"
@@ -124,6 +125,7 @@ start_comfy() {
 
   log "[1/3] starting ComfyUI..."
   log "[INFO] startup timeout: ${COMFY_START_TIMEOUT}s"
+  log "[INFO] startup grace: ${COMFY_START_GRACE}s"
 
   if is_comfy_running; then
     log "[OK] ComfyUI already running on port ${CF_LOCAL_PORT}"
@@ -138,20 +140,43 @@ start_comfy() {
 
   nohup python main.py --listen 0.0.0.0 --port "${CF_LOCAL_PORT}" \
     > "$SERVICE_LOG" 2>&1 &
+  local comfy_pid=$!
+  log "[INFO] ComfyUI process launched: pid=${comfy_pid}"
 
-  for _ in $(seq 1 "$COMFY_START_TIMEOUT"); do
+  for i in $(seq 1 "$COMFY_START_TIMEOUT"); do
     if curl -fsS "http://127.0.0.1:${CF_LOCAL_PORT}" >/dev/null 2>&1; then
       log "[OK] ComfyUI running on port ${CF_LOCAL_PORT}"
       return 0
     fi
 
-    if ! pgrep -f "main.py.*--port ${CF_LOCAL_PORT}" >/dev/null 2>&1; then
-      log "[ERROR] ComfyUI exited"
-      tail -n 120 "$SERVICE_LOG" | tee -a "$START_LOG" || true
-      exit 1
+    if kill -0 "$comfy_pid" >/dev/null 2>&1; then
+      sleep 1
+      continue
     fi
 
-    sleep 1
+    # During early bootstrap, the original child process can briefly be hard to
+    # match by command line while imports and dependency installs are happening.
+    # Give ComfyUI a short grace window before declaring startup failure.
+    if [ "$i" -le "$COMFY_START_GRACE" ]; then
+      if pgrep -f "main.py.*--port ${CF_LOCAL_PORT}" >/dev/null 2>&1 \
+        || lsof -ti :"${CF_LOCAL_PORT}" >/dev/null 2>&1; then
+        sleep 1
+        continue
+      fi
+
+      log "[WARN] ComfyUI pid=${comfy_pid} not visible yet; waiting during grace window (${i}/${COMFY_START_GRACE})"
+      sleep 1
+      continue
+    fi
+
+    if pgrep -f "main.py.*--port ${CF_LOCAL_PORT}" >/dev/null 2>&1; then
+      sleep 1
+      continue
+    fi
+
+    log "[ERROR] ComfyUI exited"
+    tail -n 120 "$SERVICE_LOG" | tee -a "$START_LOG" || true
+    exit 1
   done
 
   log "[ERROR] ComfyUI healthcheck failed after ${COMFY_START_TIMEOUT}s"
