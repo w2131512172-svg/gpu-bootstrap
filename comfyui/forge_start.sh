@@ -7,7 +7,8 @@ LOG_DIR="${AI_FORGE_LOG_DIR:-/root/ai_forge_logs}"
 FORGE_LOG="${FORGE_LOG:-${LOG_DIR}/forge_start.log}"
 
 TORCH_PROFILE="${TORCH_PROFILE:-auto}"
-ENV_NAME="${ENV_NAME:-torch251-cu121}"
+USER_ENV_NAME="${ENV_NAME:-}"
+ENV_NAME="${ENV_NAME:-}"
 MINICONDA_DIR="${MINICONDA_DIR:-/root/miniconda3}"
 
 mkdir -p "$LOG_DIR"
@@ -61,7 +62,8 @@ prepare_private_configs() {
     set +a
 
     TORCH_PROFILE="${TORCH_PROFILE:-auto}"
-    ENV_NAME="${ENV_NAME:-torch251-cu121}"
+    USER_ENV_NAME="${ENV_NAME:-}"
+    ENV_NAME="${ENV_NAME:-}"
     MINICONDA_DIR="${MINICONDA_DIR:-/root/miniconda3}"
     log "[OK] loaded /root/.env"
   fi
@@ -109,23 +111,32 @@ prepare_private_configs() {
 detect_torch_profile() {
   if [ "$TORCH_PROFILE" != "auto" ]; then
     log "[INFO] TORCH_PROFILE forced by env: $TORCH_PROFILE"
-    return 0
+  else
+    local detector="$SCRIPT_DIR/detect_torch_profile.sh"
+
+    [ -f "$detector" ] || die "detect_torch_profile.sh not found: $detector"
+
+    TORCH_PROFILE="$(bash "$detector")"
+
+    log "[INFO] detected TORCH_PROFILE=$TORCH_PROFILE"
   fi
-
-  local detector="$SCRIPT_DIR/detect_torch_profile.sh"
-
-  [ -f "$detector" ] || die "detect_torch_profile.sh not found: $detector"
-
-  TORCH_PROFILE="$(bash "$detector")"
-
-  log "[INFO] detected TORCH_PROFILE=$TORCH_PROFILE"
 
   case "$TORCH_PROFILE" in
     cu128)
-      ENV_NAME="${ENV_NAME:-torch-cu128}"
+      if [ -n "$USER_ENV_NAME" ]; then
+        ENV_NAME="$USER_ENV_NAME"
+        log "[INFO] ENV_NAME forced by env: $ENV_NAME"
+      else
+        ENV_NAME="torch-cu128"
+      fi
       ;;
     cu121)
-      ENV_NAME="${ENV_NAME:-torch251-cu121}"
+      if [ -n "$USER_ENV_NAME" ]; then
+        ENV_NAME="$USER_ENV_NAME"
+        log "[INFO] ENV_NAME forced by env: $ENV_NAME"
+      else
+        ENV_NAME="torch251-cu121"
+      fi
       ;;
     *)
       die "unsupported TORCH_PROFILE: $TORCH_PROFILE"
@@ -185,6 +196,7 @@ case "$TORCH_PROFILE" in
 esac
 
 log "[INFO] selected bootstrap: $BOOTSTRAP_SCRIPT"
+log "[INFO] selected conda env: $ENV_NAME"
 
 run_step \
   "environment bootstrap" \
