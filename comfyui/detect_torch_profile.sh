@@ -8,8 +8,9 @@ set -euo pipefail
 #   RTX 5090 + CUDA 12.8 base + bootstrap-cu121 = FAIL
 #   RTX 5090 + CUDA 12.8 base + bootstrap-cu128 = OK
 #   A100     + CUDA 12.8 base + bootstrap-cu121 = OK
+#   RTX PRO 5000 Blackwell + CUDA 12.8 base + bootstrap-cu128 = OK
 #
-# Rule v0.2:
+# Rule v0.3:
 #   New architecture GPU + CUDA 12.8+ base image -> cu128
 #   Otherwise                                      -> cu121
 #
@@ -38,30 +39,38 @@ fi
 GPU_NAME="$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -n1 || true)"
 
 # Base image CUDA version, not host driver CUDA version.
-# Prefer /usr/local/cuda/version.txt because nvidia-smi reports host driver CUDA capability.
+# nvidia-smi reports driver CUDA capability, so do not use it for BASE_CUDA.
 BASE_CUDA=""
+
+# 1) Prefer explicit version files when available.
 if [ -f /usr/local/cuda/version.txt ]; then
   BASE_CUDA="$(grep -oE '[0-9]+\.[0-9]+' /usr/local/cuda/version.txt | head -n1 || true)"
 fi
 
+# 2) Runtime images may not include nvcc, but devel images usually do.
 if [ -z "$BASE_CUDA" ] && command -v nvcc >/dev/null 2>&1; then
   BASE_CUDA="$(nvcc --version 2>/dev/null | grep -oE 'release [0-9]+\.[0-9]+' | awk '{print $2}' | head -n1 || true)"
 fi
 
-SM_CODE="$(python - <<'PY' 2>/dev/null || true
-import subprocess, re
-try:
-    out = subprocess.check_output(
-        ['nvidia-smi', '--query-gpu=compute_cap', '--format=csv,noheader'],
-        stderr=subprocess.DEVNULL,
-    ).decode().strip().splitlines()[0]
-    m = re.search(r'(\d+)\.(\d+)', out)
-    if m:
-        print(int(m.group(1)) * 10 + int(m.group(2)))
-except Exception:
-    pass
-PY
-)"
+# 3) CUDA runtime images often expose /usr/local/cuda-12.8 but no version.txt/nvcc.
+if [ -z "$BASE_CUDA" ]; then
+  BASE_CUDA="$(find /usr/local -maxdepth 1 -type d -regextype posix-extended -regex '.*/cuda-[0-9]+\.[0-9]+' 2>/dev/null \
+    | sed -E 's#.*/cuda-([0-9]+\.[0-9]+).*#\1#' \
+    | sort -V \
+    | tail -n1 || true)"
+fi
+
+# SM / compute capability.
+# Prefer nvidia-smi compute_cap so this still works before bootstrap installs Python.
+SM_RAW="$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null | head -n1 || true)"
+SM_CODE=""
+if echo "$SM_RAW" | grep -Eq '^[0-9]+\.[0-9]+'; then
+  SM_MAJOR="$(echo "$SM_RAW" | cut -d. -f1)"
+  SM_MINOR="$(echo "$SM_RAW" | cut -d. -f2 | grep -oE '^[0-9]+' || true)"
+  if [ -n "$SM_MAJOR" ] && [ -n "$SM_MINOR" ]; then
+    SM_CODE=$((SM_MAJOR * 10 + SM_MINOR))
+  fi
+fi
 
 # Some nvidia-smi versions do not expose compute_cap. Fall back to known names.
 if [ -z "$SM_CODE" ]; then
@@ -88,6 +97,7 @@ if [ -n "$BASE_CUDA" ]; then
 fi
 
 log "gpu_name=${GPU_NAME:-unknown}"
+log "sm_raw=${SM_RAW:-unknown}"
 log "sm_code=${SM_CODE:-unknown}"
 log "base_cuda=${BASE_CUDA:-unknown}"
 log "new_arch_gpu=${NEW_ARCH_GPU}"
