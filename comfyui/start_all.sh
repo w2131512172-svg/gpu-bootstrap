@@ -17,7 +17,8 @@ export CF_HOSTNAME="${CF_HOSTNAME:-comfy.jhinforge.xyz}"
 export CF_LOCAL_PORT="${CF_LOCAL_PORT:-8188}"
 export CF_TUNNEL_NAME="${CF_TUNNEL_NAME:-comfy}"
 
-ENV_NAME="${ENV_NAME:-torch251-cu121}"
+TORCH_PROFILE="${TORCH_PROFILE:-auto}"
+ENV_NAME="${ENV_NAME:-}"
 MINICONDA_DIR="${MINICONDA_DIR:-/root/miniconda3}"
 COMFY_START_TIMEOUT="${COMFY_START_TIMEOUT:-300}"
 COMFY_START_GRACE="${COMFY_START_GRACE:-8}"
@@ -50,7 +51,45 @@ Commands:
 EOF
 }
 
+resolve_env_name() {
+  if [ -n "${ENV_NAME:-}" ]; then
+    log "[INFO] ENV_NAME provided: ${ENV_NAME}"
+    return 0
+  fi
+
+  local selected_profile="$TORCH_PROFILE"
+
+  if [ "$selected_profile" = "auto" ]; then
+    if [ -x "${SCRIPT_DIR}/detect_torch_profile.sh" ] || [ -f "${SCRIPT_DIR}/detect_torch_profile.sh" ]; then
+      selected_profile="$(bash "${SCRIPT_DIR}/detect_torch_profile.sh" | tail -n 1 | tr -d '[:space:]')"
+      log "[INFO] detected TORCH_PROFILE for service layer: ${selected_profile}"
+    else
+      selected_profile="cu121"
+      log "[WARN] detect_torch_profile.sh not found; fallback TORCH_PROFILE=${selected_profile}"
+    fi
+  else
+    log "[INFO] TORCH_PROFILE provided for service layer: ${selected_profile}"
+  fi
+
+  case "$selected_profile" in
+    cu128)
+      ENV_NAME="torch-cu128"
+      ;;
+    cu121)
+      ENV_NAME="torch251-cu121"
+      ;;
+    *)
+      die "unsupported TORCH_PROFILE for service layer: ${selected_profile}"
+      ;;
+  esac
+
+  export TORCH_PROFILE="$selected_profile"
+  export ENV_NAME
+  log "[INFO] selected conda env for service layer: ${ENV_NAME}"
+}
+
 activate_project_env() {
+  resolve_env_name
   log "[INFO] activating conda env for service layer: ${ENV_NAME}"
 
   local conda_sh="${MINICONDA_DIR}/etc/profile.d/conda.sh"
