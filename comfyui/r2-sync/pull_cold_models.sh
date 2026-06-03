@@ -10,8 +10,9 @@ usage() {
 Usage:
   bash pull_cold_models.sh --type lora xxx,yyy,zzz
   bash pull_cold_models.sh --type checkpoint aaa,bbb
+  bash pull_cold_models.sh --type diffusion xxx,yyy
   bash pull_cold_models.sh -t lora xxx
-  bash pull_cold_models.sh --dry-run --type lora xxx,yyy
+  bash pull_cold_models.sh --dry-run --type diffusion xxx,yyy
 
 Model name rule:
   Input names should NOT include .safetensors.
@@ -20,6 +21,7 @@ Model name rule:
 Supported types:
   lora | loras
   checkpoint | checkpoints
+  diffusion | diffusion_model | diffusion_models
 EOF
 }
 
@@ -55,8 +57,11 @@ case "$MODEL_TYPE" in
   checkpoint|checkpoints)
     MODEL_BUCKET="checkpoints"
     ;;
+  diffusion|diffusion_model|diffusion_models)
+    MODEL_BUCKET="diffusion_models"
+    ;;
   *)
-    echo "[ERROR] Missing or invalid --type. Use: lora or checkpoint"
+    echo "[ERROR] Missing or invalid --type. Use: lora, checkpoint, or diffusion"
     usage
     exit 1
     ;;
