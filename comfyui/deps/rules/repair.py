@@ -1,39 +1,15 @@
-from pathlib import Path
 from rules.mapping import modules_to_packages
 
-def append_manual_requirements(manual_path: Path, packages: list[str]) -> list[str]:
+
+def repair_from_modules(modules: list[str]) -> list[str]:
     """
-    把缺失包追加写入 manual_requirements.txt（去重）
-    返回实际新增的包
+    模块列表 → pip 包列表。
+
+    注意：这里不再写入 manual_requirements.txt。
+    repair-log 只负责把启动日志里的 ModuleNotFoundError
+    转换成本次临时 Pod 可以安装的 pip 包名。
+
+    长期固化仍然由用户手动维护：
+    comfyui/deps/manual_requirements.txt
     """
-    existing = set()
-
-    if manual_path.exists():
-        for line in manual_path.read_text(encoding="utf-8", errors="ignore").splitlines():
-            line = line.strip()
-            if line and not line.startswith("#"):
-                existing.add(line)
-
-    added = []
-
-    for pkg in packages:
-        if pkg in existing:
-            continue
-        added.append(pkg)
-        existing.add(pkg)
-
-    if added:
-        with manual_path.open("a", encoding="utf-8") as f:
-            for pkg in added:
-                f.write(pkg + "\n")
-
-    return added
-
-
-def repair_from_modules(modules: list[str], manual_path: Path) -> list[str]:
-    """
-    模块列表 → pip包 → 写入 manual_requirements
-    """
-    packages = modules_to_packages(modules)
-    added = append_manual_requirements(manual_path, packages)
-    return added
+    return modules_to_packages(modules)
