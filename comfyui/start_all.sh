@@ -46,7 +46,7 @@ Usage: bash start_all.sh [start|stop|restart|status]
 Commands:
   start     Start ComfyUI and Cloudflare Tunnel. Default.
   stop      Stop ComfyUI only.
-  restart   Restart ComfyUI only, then keep/start tunnel.
+  restart   Restart ComfyUI only. Does not touch Cloudflare Tunnel.
   status    Show ComfyUI/tunnel process and port status.
 EOF
 }
@@ -275,7 +275,6 @@ case "$cmd" in
   restart)
     stop_comfy
     start_comfy
-    start_tunnel
     status_all
     ;;
   status)
