@@ -140,6 +140,34 @@ def build_install_plan(clean: list[str]) -> tuple[list[str], list[str]]:
     return normal, git
 
 
+def print_repair_summary(modules: list[str], packages: list[str], *, installed: bool) -> None:
+    print("=" * 60)
+    print("[auto_deps] EverForge repair-log summary")
+    print("[auto_deps] missing modules:", len(modules))
+
+    if modules:
+        print("[auto_deps] modules:")
+        for module in modules:
+            print(" -", module)
+
+    print("[auto_deps] mapped pip packages:", len(packages))
+    if packages:
+        for pkg in packages:
+            print(" +", pkg)
+
+    if packages and installed:
+        print("[auto_deps] status: repaired on this temporary Pod")
+        print("[auto_deps] please solidify these packages later into:")
+        print(f"[auto_deps] {MANUAL_REQUIREMENTS}")
+    elif packages:
+        print("[auto_deps] status: repair packages detected but not installed")
+        print("[auto_deps] rerun with --repair-install to install them")
+    else:
+        print("[auto_deps] status: no ModuleNotFoundError repair package detected")
+
+    print("=" * 60)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="AI Forge ComfyUI dependency orchestrator"
@@ -162,12 +190,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--repair-log",
         type=str,
-        help="Parse ComfyUI log and append missing deps to manual_requirements.txt.",
+        help="Parse ComfyUI log and map ModuleNotFoundError modules to pip packages.",
     )
     parser.add_argument(
         "--repair-install",
         action="store_true",
-        help="Install manual requirements after repair-log.",
+        help="Install only the packages detected from --repair-log.",
     )
     return parser.parse_args()
 
@@ -186,31 +214,29 @@ def main() -> None:
         log("mode: repair-log")
         log("repair-log:", log_path)
 
-        modules = scan_missing_modules(log_path)
+        modules = dedupe_keep_order(scan_missing_modules(log_path))
         log("missing modules:", len(modules))
 
-        for module in modules:
-            print(" -", module)
+        packages = repair_from_modules(modules)
+        packages = dedupe_keep_order(packages)
+        log("repair packages:", len(packages))
 
-        added = repair_from_modules(modules, MANUAL_REQUIREMENTS)
-
-        if added:
-            log("added to manual_requirements:", len(added))
-            for pkg in added:
-                print(" +", pkg)
-        else:
-            log("no new packages added")
+        installed = False
 
         if args.repair_install:
-            log("installing repaired dependency plan")
-            clean = []
-            normal, git = build_install_plan(clean)
-            install_all(
-                normal,
-                git,
-                upgrade_tools=not args.no_upgrade_tools,
-            )
+            if packages:
+                log("installing repair packages only")
+                normal, git = split_normal_git(packages)
+                install_all(
+                    normal,
+                    git,
+                    upgrade_tools=not args.no_upgrade_tools,
+                )
+                installed = True
+            else:
+                log("no repair packages to install")
 
+        print_repair_summary(modules, packages, installed=installed)
         log("DONE repair-log")
         return
 
