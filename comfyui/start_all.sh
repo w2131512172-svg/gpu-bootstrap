@@ -27,6 +27,8 @@ COMFY_DIR="${COMFY_DIR:-/root/ComfyUI}"
 LOG_DIR="${AI_FORGE_LOG_DIR:-/root/ai_forge_logs}"
 SERVICE_LOG="${SERVICE_LOG:-${LOG_DIR}/comfyui.log}"
 START_LOG="${START_LOG:-${LOG_DIR}/start_all.log}"
+BOOT_REPAIR_LOG="${BOOT_REPAIR_LOG:-${LOG_DIR}/boot_repair.nohup.log}"
+BOOT_REPAIR_SCRIPT="${BOOT_REPAIR_SCRIPT:-${SCRIPT_DIR}/deps/boot_repair.py}"
 
 mkdir -p "$LOG_DIR"
 
@@ -120,6 +122,26 @@ is_comfy_running() {
     && pgrep -f "main.py.*--port ${CF_LOCAL_PORT}" >/dev/null 2>&1
 }
 
+start_boot_repair() {
+  if [ ! -f "$BOOT_REPAIR_SCRIPT" ]; then
+    log "[WARN] boot_repair.py not found: ${BOOT_REPAIR_SCRIPT}"
+    return 0
+  fi
+
+  if pgrep -f "${BOOT_REPAIR_SCRIPT}" >/dev/null 2>&1; then
+    log "[INFO] boot_repair.py already running; skip launching another one"
+    return 0
+  fi
+
+  mkdir -p "$(dirname "$BOOT_REPAIR_LOG")"
+  log "[INFO] launching boot_repair.py in background"
+  log "[INFO] boot repair nohup log: ${BOOT_REPAIR_LOG}"
+
+  nohup python "$BOOT_REPAIR_SCRIPT" \
+    --log "$SERVICE_LOG" \
+    >> "$BOOT_REPAIR_LOG" 2>&1 &
+}
+
 stop_comfy() {
   log "[INFO] stopping ComfyUI on port ${CF_LOCAL_PORT}..."
 
@@ -168,6 +190,7 @@ start_comfy() {
 
   if is_comfy_running; then
     log "[OK] ComfyUI already running on port ${CF_LOCAL_PORT}"
+    start_boot_repair
     return 0
   fi
 
@@ -185,6 +208,7 @@ start_comfy() {
   for i in $(seq 1 "$COMFY_START_TIMEOUT"); do
     if curl -fsS "http://127.0.0.1:${CF_LOCAL_PORT}" >/dev/null 2>&1; then
       log "[OK] ComfyUI running on port ${CF_LOCAL_PORT}"
+      start_boot_repair
       return 0
     fi
 
@@ -234,6 +258,7 @@ status_all() {
   log "[INFO] port: ${CF_LOCAL_PORT}"
   log "[INFO] ComfyUI log: ${SERVICE_LOG}"
   log "[INFO] start log: ${START_LOG}"
+  log "[INFO] boot repair log: ${BOOT_REPAIR_LOG}"
 
   if is_comfy_running; then
     log "[OK] ComfyUI HTTP healthcheck passed"
@@ -242,7 +267,7 @@ status_all() {
   fi
 
   lsof -i :"${CF_LOCAL_PORT}" 2>&1 | tee -a "$START_LOG" || true
-  pgrep -af "main.py|cloudflared|http.server" 2>&1 | tee -a "$START_LOG" || true
+  pgrep -af "main.py|cloudflared|boot_repair.py|http.server" 2>&1 | tee -a "$START_LOG" || true
 }
 
 start_all() {
