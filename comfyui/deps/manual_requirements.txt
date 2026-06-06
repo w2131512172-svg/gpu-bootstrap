@@ -10,3 +10,4 @@ wget
 blend_modes
 onnxruntime-gpu
 diffusers
+gguf
