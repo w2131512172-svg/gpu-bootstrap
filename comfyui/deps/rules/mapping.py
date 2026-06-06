@@ -11,7 +11,7 @@ MODULE_TO_PACKAGE = {
     "dotenv": "python-dotenv",
     "dateutil": "python-dateutil",
     "blend_modes": "blend_modes",
-    "pkg_resources": "setuptools",
+    "pkg_resources": "setuptools<81",
 
     # 模块名和包名一致，也可以显式写进去，方便可读性
     "pandas": "pandas",
