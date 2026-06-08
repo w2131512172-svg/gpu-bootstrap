@@ -12,6 +12,7 @@ MODULE_TO_PACKAGE = {
     "dateutil": "python-dateutil",
     "blend_modes": "blend_modes",
     "pkg_resources": "setuptools<81",
+    "cpuinfo": "py-cpuinfo",
 
     # 模块名和包名一致，也可以显式写进去，方便可读性
     "pandas": "pandas",
