@@ -51,6 +51,7 @@ APT_PACKAGES=(
   zip
   unzip
   lsof
+  jq
 )
 
 log() {
