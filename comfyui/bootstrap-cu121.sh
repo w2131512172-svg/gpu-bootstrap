@@ -43,6 +43,7 @@ APT_PACKAGES=(
   ca-certificates
   bzip2
   rclone
+  jq
   zip
   unzip
   lsof
