@@ -11,3 +11,11 @@ blend_modes
 onnxruntime-gpu
 diffusers
 gguf
+webcolors
+deepdiff
+numba
+imageio-ffmpeg
+natsort
+colour-science
+rawpy
+OpenEXR
