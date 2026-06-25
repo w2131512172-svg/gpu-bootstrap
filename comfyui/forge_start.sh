@@ -225,6 +225,10 @@ run_step \
   python "$SCRIPT_DIR/deps/auto_deps.py"
 
 run_step \
+  "comfyui-sam3 isolation env repair" \
+  bash "$SCRIPT_DIR/deps/fix_sam3_env.sh"
+
+run_step \
   "service startup" \
   bash "$SCRIPT_DIR/start_all.sh" start
 
