@@ -49,6 +49,7 @@ Notes:
   - Manual mode and manifest mode share the same pulling logic.
   - Manifest names should normally match local md file names without .md.
   - xxx.md -> xxx.safetensors
+  - Remote and local model filename matching is case-insensitive.
 USAGE_EOF
 }
 
@@ -252,10 +253,30 @@ if [ "$DRY_RUN" = true ]; then
 fi
 log "============================================================"
 
+resolve_remote_filename_case_insensitive() {
+  local requested_filename="$1"
+
+  rclone lsf "$REMOTE_DIR" | awk -v target="$requested_filename" '
+    BEGIN { target_lc = tolower(target) }
+    tolower($0) == target_lc { print; exit }
+  '
+}
+
+find_local_filename_case_insensitive() {
+  local requested_filename="$1"
+
+  find "$LOCAL_DIR" -maxdepth 1 -type f -printf '%f\n' 2>/dev/null | awk -v target="$requested_filename" '
+    BEGIN { target_lc = tolower(target) }
+    tolower($0) == target_lc { print; exit }
+  '
+}
+
 pull_one_model() {
   local raw_name="$1"
   local model_name
-  local filename
+  local requested_filename
+  local local_existing_filename
+  local remote_matched_filename
   local remote_file
   local local_file
 
@@ -265,19 +286,29 @@ pull_one_model() {
     return 0
   fi
 
-  filename="$model_name.safetensors"
-  remote_file="$REMOTE_DIR/$filename"
-  local_file="$LOCAL_DIR/$filename"
+  requested_filename="$model_name.safetensors"
 
-  if [ -f "$local_file" ]; then
-    log "[SKIP] already exists locally: $local_file"
+  local_existing_filename="$(find_local_filename_case_insensitive "$requested_filename")"
+  if [ -n "$local_existing_filename" ]; then
+    if [ "$local_existing_filename" != "$requested_filename" ]; then
+      log "[INFO] local case-insensitive match found: requested=$requested_filename matched=$local_existing_filename"
+    fi
+    log "[SKIP] already exists locally: $LOCAL_DIR/$local_existing_filename"
     return 0
   fi
 
-  if ! rclone lsf "$remote_file" >/dev/null 2>&1; then
-    log "[WARN] remote model not found: $remote_file"
+  remote_matched_filename="$(resolve_remote_filename_case_insensitive "$requested_filename")"
+  if [ -z "$remote_matched_filename" ]; then
+    log "[WARN] remote model not found: $REMOTE_DIR/$requested_filename"
     return 0
   fi
+
+  if [ "$remote_matched_filename" != "$requested_filename" ]; then
+    log "[INFO] remote case-insensitive match found: requested=$requested_filename matched=$remote_matched_filename"
+  fi
+
+  remote_file="$REMOTE_DIR/$remote_matched_filename"
+  local_file="$LOCAL_DIR/$remote_matched_filename"
 
   log "[COPY] $remote_file -> $local_file"
   rclone copyto "$remote_file" "$local_file" \
@@ -286,7 +317,7 @@ pull_one_model() {
     --log-level INFO \
     "${RCLONE_DRY_RUN_ARGS[@]}"
 
-  log "[OK] pulled: $filename"
+  log "[OK] pulled: $remote_matched_filename"
 }
 
 IFS=',' read -ra MODEL_ARRAY <<< "$MODEL_NAMES"
