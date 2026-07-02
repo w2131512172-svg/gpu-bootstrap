@@ -1,0 +1,150 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+usage() {
+  cat <<'USAGE_EOF'
+EverForge R2 Sync CLI
+
+Usage:
+  r2sync help
+  r2sync check
+
+  # Pull ComfyUI asset/state layer from R2
+  r2sync pull
+  r2sync pull --dry-run
+
+  # Push ComfyUI asset/state layer to R2
+  r2sync push
+  r2sync push --dry-run
+
+  # Clean local junk, then push incrementally
+  r2sync push-clean
+  r2sync push-clean --dry-run
+
+  # Clean local disposable ComfyUI files only
+  r2sync clean
+  r2sync clean --dry-run
+
+  # Pull cold models from manifest JSON
+  r2sync models pull pod_lora_pull_manifest.json
+  r2sync models pull --dry-run pod_lora_pull_manifest.json
+
+  # Pull cold models manually
+  r2sync models pull-manual lora kiss,kiss_0.2
+  r2sync models pull-manual checkpoint aaa,bbb
+  r2sync models pull-manual diffusion xxx,yyy
+  r2sync models pull-manual --dry-run lora kiss,kiss_0.2
+
+Notes:
+  - This is a dispatcher for scripts in comfyui/r2-sync.
+  - It can be called from any directory after symlinking it into PATH.
+  - Model filename matching is handled by pull_cold_models_manifest_dual_mode.sh.
+USAGE_EOF
+}
+
+die() {
+  echo "[ERROR] $*" >&2
+  echo >&2
+  usage >&2
+  exit 1
+}
+
+run_script() {
+  local script_name="$1"
+  shift
+
+  local script_path="$SCRIPT_DIR/$script_name"
+  if [ ! -f "$script_path" ]; then
+    echo "[ERROR] script not found: $script_path" >&2
+    exit 1
+  fi
+
+  exec bash "$script_path" "$@"
+}
+
+cmd="${1:-help}"
+if [ $# -gt 0 ]; then
+  shift
+fi
+
+case "$cmd" in
+  help|-h|--help)
+    usage
+    ;;
+
+  check|doctor)
+    run_script "check_r2.sh" "$@"
+    ;;
+
+  pull)
+    run_script "pull_from_r2.sh" "$@"
+    ;;
+
+  push)
+    run_script "push_incremental.sh" "$@"
+    ;;
+
+  push-clean|clean-push)
+    run_script "push_clean_incremental.sh" "$@"
+    ;;
+
+  clean)
+    run_script "clean_local_junk.sh" "$@"
+    ;;
+
+  models|model)
+    subcmd="${1:-}"
+    [ -n "$subcmd" ] || die "missing models subcommand"
+    shift
+
+    case "$subcmd" in
+      pull|manifest)
+        dry_run=false
+        if [[ "${1:-}" == "--dry-run" ]]; then
+          dry_run=true
+          shift
+        fi
+
+        manifest_file="${1:-}"
+        [ -n "$manifest_file" ] || die "missing manifest file"
+        shift
+
+        if [ "$dry_run" = true ]; then
+          run_script "pull_cold_models_manifest_dual_mode.sh" --dry-run --manifest "$manifest_file" "$@"
+        else
+          run_script "pull_cold_models_manifest_dual_mode.sh" --manifest "$manifest_file" "$@"
+        fi
+        ;;
+
+      pull-manual|manual)
+        dry_run=false
+        if [[ "${1:-}" == "--dry-run" ]]; then
+          dry_run=true
+          shift
+        fi
+
+        model_type="${1:-}"
+        model_names="${2:-}"
+        [ -n "$model_type" ] || die "missing model type"
+        [ -n "$model_names" ] || die "missing model names"
+        shift 2
+
+        if [ "$dry_run" = true ]; then
+          run_script "pull_cold_models_manifest_dual_mode.sh" --dry-run --type "$model_type" "$model_names" "$@"
+        else
+          run_script "pull_cold_models_manifest_dual_mode.sh" --type "$model_type" "$model_names" "$@"
+        fi
+        ;;
+
+      *)
+        die "unknown models subcommand: $subcmd"
+        ;;
+    esac
+    ;;
+
+  *)
+    die "unknown command: $cmd"
+    ;;
+esac
