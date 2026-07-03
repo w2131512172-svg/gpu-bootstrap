@@ -29,14 +29,21 @@ Usage:
   r2sync clean --dry-run
 
   # Pull cold models from manifest JSON
+  # The model type comes from JSON: type/model_type = lora | checkpoint | diffusion
   r2sync models pull pod_lora_pull_manifest.json
+  r2sync models pull pod_checkpoint_pull_manifest.json
+  r2sync models pull pod_diffusion_pull_manifest.json
   r2sync models pull --dry-run pod_lora_pull_manifest.json
+  r2sync models pull --dry-run pod_checkpoint_pull_manifest.json
+  r2sync models pull --dry-run pod_diffusion_pull_manifest.json
 
   # Pull cold models manually
   r2sync models pull-manual lora kiss,kiss_0.2
   r2sync models pull-manual checkpoint aaa,bbb
   r2sync models pull-manual diffusion xxx,yyy
   r2sync models pull-manual --dry-run lora kiss,kiss_0.2
+  r2sync models pull-manual --dry-run checkpoint aaa,bbb
+  r2sync models pull-manual --dry-run diffusion xxx,yyy
 
   # ComfyUI service debug helpers
   r2sync service status
