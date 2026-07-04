@@ -19,3 +19,4 @@ natsort
 colour-science
 rawpy
 OpenEXR
+comfy-env
