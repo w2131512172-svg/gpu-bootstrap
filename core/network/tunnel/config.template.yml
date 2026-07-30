@@ -1,7 +1,7 @@
 tunnel: __CF_TUNNEL_UUID__
-credentials-file: /root/.cloudflared/__CF_TUNNEL_UUID__.json
+credentials-file: __CF_CREDENTIAL_FILE__
 
 ingress:
   - hostname: __CF_HOSTNAME__
-    service: http://localhost:__CF_LOCAL_PORT__
+    service: http://127.0.0.1:__CF_LOCAL_PORT__
   - service: http_status:404

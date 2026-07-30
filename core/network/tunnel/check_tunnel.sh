@@ -1,80 +1,63 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ===== load env =====
-if [ -f /root/.env ]; then
-  echo "[OK] env exists: /root/.env"
-  set -a
-  source /root/.env
-  set +a
-else
-  echo "[ERROR] env missing: /root/.env"
-  exit 1
-fi
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CORE_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
-: "${CF_TUNNEL_UUID:?need CF_TUNNEL_UUID}"
-: "${CF_HOSTNAME:?need CF_HOSTNAME}"
-: "${CF_LOCAL_PORT:?need CF_LOCAL_PORT}"
+# shellcheck disable=SC1091
+source "${CORE_DIR}/logging/log.sh"
+# shellcheck disable=SC1091
+source "${CORE_DIR}/utils/common.sh"
+# shellcheck disable=SC1091
+source "${CORE_DIR}/config/load_config.sh"
+# shellcheck disable=SC1091
+source "${CORE_DIR}/network/cloudflared.sh"
+
+CORE_CONFIG_FILE="${CORE_CONFIG_FILE:-/root/.env}"
+core_load_config "$CORE_CONFIG_FILE"
+core_config_require CF_TUNNEL_UUID CF_HOSTNAME CF_LOCAL_PORT
+core_cloudflared_require
+
+CF_CONFIG_DIR="${CF_CONFIG_DIR:-${HOME}/.cloudflared}"
+CF_CONFIG_FILE="${CF_CONFIG_FILE:-${CF_CONFIG_DIR}/config.yml}"
+CF_CREDENTIAL_FILE="${CF_CREDENTIAL_FILE:-${CF_CONFIG_DIR}/${CF_TUNNEL_UUID}.json}"
 
 LOG_DIR="${AI_FORGE_LOG_DIR:-/root/ai_forge_logs}"
 CLOUDFLARED_LOG="${CLOUDFLARED_LOG:-${LOG_DIR}/cloudflared.log}"
-TUNNEL_CHECK_LOG="${TUNNEL_CHECK_LOG:-${LOG_DIR}/tunnel_check.log}"
+CORE_LOG_FILE="${TUNNEL_CHECK_LOG:-${LOG_DIR}/tunnel_check.log}"
+export CORE_LOG_FILE
 
-CONFIG_FILE="/root/.cloudflared/config.yml"
-CRED_FILE="/root/.cloudflared/${CF_TUNNEL_UUID}.json"
+core_ensure_dir "$LOG_DIR"
+core_require_file "$CF_CONFIG_FILE"
+core_require_file "$CF_CREDENTIAL_FILE"
 
-mkdir -p "$LOG_DIR"
+PROCESS_PATTERN="cloudflared.*--config ${CF_CONFIG_FILE}.*run"
 
-exec > >(tee -a "$TUNNEL_CHECK_LOG") 2>&1
+core_section "EverSpark Forge tunnel check"
+core_info "Hostname: $CF_HOSTNAME"
+core_info "Local port: $CF_LOCAL_PORT"
+core_info "Tunnel UUID: $CF_TUNNEL_UUID"
 
-echo "============================================================"
-echo "[INFO] AI Forge tunnel check"
-echo "[INFO] hostname : $CF_HOSTNAME"
-echo "[INFO] local port: $CF_LOCAL_PORT"
-echo "[INFO] uuid      : $CF_TUNNEL_UUID"
-echo "============================================================"
-
-command -v cloudflared >/dev/null 2>&1 \
-  && echo "[OK] cloudflared found: $(command -v cloudflared)" \
-  || { echo "[ERROR] cloudflared not found"; exit 1; }
-
-[ -f "$CONFIG_FILE" ] \
-  && echo "[OK] config exists: $CONFIG_FILE" \
-  || { echo "[ERROR] config missing: $CONFIG_FILE"; exit 1; }
-
-[ -f "$CRED_FILE" ] \
-  && echo "[OK] credential exists: $CRED_FILE" \
-  || { echo "[ERROR] credential missing: $CRED_FILE"; exit 1; }
-
-if pgrep -af "cloudflared" | grep -q "$CONFIG_FILE"; then
-  echo "[OK] tunnel process running"
-  pgrep -af "cloudflared" || true
+if pgrep -af "$PROCESS_PATTERN" >/dev/null 2>&1; then
+  core_ok "Tunnel process is running."
 else
-  echo "[ERROR] tunnel process not running"
-  exit 1
+  core_die "Tunnel process is not running for config: $CF_CONFIG_FILE"
 fi
 
 if curl -fsS "http://127.0.0.1:${CF_LOCAL_PORT}" >/dev/null 2>&1; then
-  echo "[OK] local service reachable: 127.0.0.1:${CF_LOCAL_PORT}"
+  core_ok "Local service is reachable: 127.0.0.1:${CF_LOCAL_PORT}"
 else
-  echo "[WARN] local service not reachable: 127.0.0.1:${CF_LOCAL_PORT}"
+  core_warn "Local service is not reachable: 127.0.0.1:${CF_LOCAL_PORT}"
 fi
 
 if [ -f "$CLOUDFLARED_LOG" ]; then
-  echo "[OK] cloudflared log exists: $CLOUDFLARED_LOG"
-
   if grep -q "Registered tunnel connection" "$CLOUDFLARED_LOG"; then
-    echo "[OK] tunnel registered with Cloudflare"
+    core_ok "Tunnel registration found in cloudflared log."
   else
-    echo "[WARN] no registered tunnel connection found in log"
+    core_warn "Tunnel registration is not visible in cloudflared log."
   fi
-
-  echo "----------------------------------------"
-  tail -n 30 "$CLOUDFLARED_LOG" || true
 else
-  echo "[WARN] cloudflared log not found: $CLOUDFLARED_LOG"
+  core_warn "cloudflared log not found: $CLOUDFLARED_LOG"
 fi
 
-echo "============================================================"
-echo "[OK] tunnel check completed"
-echo "============================================================"
+core_ok "Tunnel check completed."
