@@ -1,23 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-: "${CF_TUNNEL_NAME:=comfy}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
-echo "[INFO] rendering config..."
-bash "$(dirname "$0")/render_tunnel_config.sh"
-
-echo "[INFO] starting tunnel: ${CF_TUNNEL_NAME}"
-
-nohup cloudflared tunnel run "${CF_TUNNEL_NAME}" \
-  > /root/cloudflared.log 2>&1 &
-
-sleep 2
-
-if pgrep -af "cloudflared tunnel run ${CF_TUNNEL_NAME}" >/dev/null; then
-  echo "[OK] tunnel started"
-  echo "[INFO] log: /root/cloudflared.log"
-else
-  echo "[ERROR] tunnel failed"
-  tail -n 50 /root/cloudflared.log || true
-  exit 1
-fi
+exec bash "${REPO_ROOT}/core/network/tunnel/start_tunnel.sh" "$@"

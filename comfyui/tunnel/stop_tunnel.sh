@@ -1,15 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "[INFO] stopping cloudflared tunnel..."
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
-pkill -9 -f "cloudflared" 2>/dev/null || true
-sleep 2
-
-if pgrep -af "cloudflared" >/dev/null; then
-  echo "[ERROR] tunnel still running"
-  pgrep -af "cloudflared" || true
-  exit 1
-else
-  echo "[OK] tunnel stopped"
-fi
+exec bash "${REPO_ROOT}/core/network/tunnel/stop_tunnel.sh" "$@"
