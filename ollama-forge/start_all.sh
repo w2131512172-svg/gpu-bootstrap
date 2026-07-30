@@ -1,22 +1,39 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
-echo "[AI Forge] Starting all services..."
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-# ===== Start Ollama =====
-if ! pgrep -x "ollama" >/dev/null; then
-  echo "[AI Forge] Starting Ollama..."
-  nohup ollama serve > /root/ollama.log 2>&1 &
-  sleep 5
-else
-  echo "[AI Forge] Ollama already running."
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/core/logging/log.sh"
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/core/config/load_config.sh"
+
+CONFIG_FILE="${CONFIG_FILE:-${SCRIPT_DIR}/config.env}"
+if [ -f "$CONFIG_FILE" ]; then
+  core_load_config "$CONFIG_FILE"
 fi
 
-echo "[AI Forge] Checking Ollama..."
-ollama list >/dev/null
-echo "[AI Forge] Ollama OK."
+OLLAMA_PORT="${OLLAMA_PORT:-11434}"
+OLLAMA_LOG="${OLLAMA_LOG:-/root/ollama.log}"
+OLLAMA_HOST="${OLLAMA_HOST:-127.0.0.1:${OLLAMA_PORT}}"
+export OLLAMA_HOST
 
-# ===== Start Open WebUI =====
-bash /root/ollama-forge/start_open_webui.sh
+core_info "[Ollama Forge] Starting Ollama."
 
-echo "[AI Forge] All services started."
+if ! pgrep -x ollama >/dev/null 2>&1; then
+  nohup ollama serve > "$OLLAMA_LOG" 2>&1 &
+  sleep 5
+else
+  core_info "[Ollama Forge] Ollama is already running."
+fi
+
+if ! ollama list >/dev/null; then
+  core_error "[Ollama Forge] Ollama health check failed."
+  tail -n 80 "$OLLAMA_LOG" || true
+  exit 1
+fi
+
+core_ok "[Ollama Forge] Ollama is ready."
+core_info "[Ollama Forge] API: http://${OLLAMA_HOST}"
+core_info "[Ollama Forge] Log: $OLLAMA_LOG"

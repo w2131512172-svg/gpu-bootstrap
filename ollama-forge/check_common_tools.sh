@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Ollama Forge system prerequisite entry.
-# Core owns common apt and cloudflared capabilities.
+# Core owns common apt capabilities.
 # Ollama remains an Ollama Forge dependency.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -14,9 +14,6 @@ source "${REPO_ROOT}/core/logging/log.sh"
 source "${REPO_ROOT}/core/utils/common.sh"
 # shellcheck disable=SC1091
 source "${REPO_ROOT}/core/system/apt.sh"
-# shellcheck disable=SC1091
-source "${REPO_ROOT}/core/network/cloudflared.sh"
-
 ollama_log() {
   core_info "[Ollama Forge][check_common_tools] $*"
 }
@@ -33,9 +30,6 @@ install_common_apt_packages() {
     htop
     tree
     nano
-    python3.11
-    python3.11-venv
-    python3-pip
     pciutils
     lshw
     ffmpeg
@@ -63,18 +57,14 @@ print_versions() {
   echo "curl:        $(curl --version 2>/dev/null | head -n 1 || true)"
   echo "wget:        $(wget --version 2>/dev/null | head -n 1 || true)"
   echo "git:         $(git --version 2>/dev/null || true)"
-  echo "python3.11:  $(python3.11 --version 2>/dev/null || true)"
-  echo "pip3:        $(pip3 --version 2>/dev/null || true)"
   echo "ffmpeg:      $(ffmpeg -version 2>/dev/null | head -n 1 || true)"
   echo "rclone:      $(rclone version 2>/dev/null | head -n 1 || true)"
-  echo "cloudflared: $(cloudflared --version 2>/dev/null || true)"
   echo "ollama:      $(ollama --version 2>/dev/null || true)"
 }
 
 main() {
   core_require_root
   install_common_apt_packages
-  core_cloudflared_install
   install_ollama_if_missing
   print_versions
   ollama_log "Common tools check completed."
