@@ -1,78 +1,56 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
-echo "[AI Forge] Bootstrap start..."
+# Ollama Forge runtime bootstrap.
+# Shared system prerequisites are delegated to Core through
+# check_common_tools.sh. Python venv, Ollama, and Open WebUI stay in Forge.
 
-FORGE_ROOT="/root/ollama-forge"
-DATA_ROOT="/root/ollama-forge-data"
-VENV_DIR="$FORGE_ROOT/venv"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-# ===== 基础工具 =====
-apt update
-apt install -y \
-  curl wget git \
-  ca-certificates \
-  build-essential \
-  net-tools iproute2 \
-  htop tree nano \
-  python3.11 python3.11-venv python3-pip \
-  pciutils lshw \
-  ffmpeg \
-  unzip zip
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/core/logging/log.sh"
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/core/utils/common.sh"
 
-# ===== rclone =====
-if ! command -v rclone >/dev/null 2>&1; then
-  echo "[AI Forge] Installing rclone..."
-  curl https://rclone.org/install.sh | bash
-else
-  echo "[AI Forge] rclone already installed"
-fi
+FORGE_ROOT="${FORGE_ROOT:-${SCRIPT_DIR}}"
+DATA_ROOT="${DATA_ROOT:-/root/ollama-forge-data}"
+VENV_DIR="${VENV_DIR:-${FORGE_ROOT}/venv}"
 
-# ===== cloudflared =====
-if ! command -v cloudflared >/dev/null 2>&1; then
-  echo "[AI Forge] Installing cloudflared..."
-  wget -O /usr/local/bin/cloudflared \
-    https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
-  chmod +x /usr/local/bin/cloudflared
-else
-  echo "[AI Forge] cloudflared already installed"
-fi
+ollama_log() {
+  core_info "[Ollama Forge][bootstrap] $*"
+}
 
-# ===== Ollama =====
-if ! command -v ollama >/dev/null 2>&1; then
-  echo "[AI Forge] Installing Ollama..."
-  curl -fsSL https://ollama.com/install.sh | sh
-else
-  echo "[AI Forge] Ollama already installed"
-fi
+main() {
+  core_require_root
 
-# ===== 目录结构 =====
-echo "[AI Forge] Creating directories..."
-mkdir -p "$DATA_ROOT/open-webui"
-mkdir -p /root/.ollama
-mkdir -p "$FORGE_ROOT/tunnel"
+  ollama_log "Bootstrap started."
+  bash "${SCRIPT_DIR}/check_common_tools.sh"
 
-# ===== Python venv =====
-if [ ! -d "$VENV_DIR" ]; then
-  echo "[AI Forge] Creating Python venv..."
-  python3.11 -m venv "$VENV_DIR"
-else
-  echo "[AI Forge] Python venv already exists"
-fi
+  ollama_log "Creating Forge data directories."
+  core_ensure_dir "${DATA_ROOT}/open-webui"
+  core_ensure_dir /root/.ollama
 
-source "$VENV_DIR/bin/activate"
+  if [ ! -x "${VENV_DIR}/bin/python" ]; then
+    ollama_log "Creating Python venv: $VENV_DIR"
+    python3.11 -m venv "$VENV_DIR"
+  else
+    ollama_log "Python venv already exists: $VENV_DIR"
+  fi
 
-# ===== Open WebUI =====
-echo "[AI Forge] Installing / updating Open WebUI..."
-pip install --upgrade pip
-pip install --upgrade open-webui
+  # shellcheck disable=SC1090
+  source "${VENV_DIR}/bin/activate"
 
-echo "[AI Forge] Bootstrap done."
+  ollama_log "Installing or updating Open WebUI."
+  python -m pip install --upgrade pip
+  python -m pip install --upgrade open-webui
 
-echo
-echo "[AI Forge] Versions:"
-echo "ollama:      $(ollama --version 2>/dev/null || true)"
-echo "rclone:      $(rclone version 2>/dev/null | head -1 || true)"
-echo "cloudflared: $(cloudflared --version 2>/dev/null || true)"
-echo "python:      $(python --version 2>/dev/null || true)"
-echo "ffmpeg:      $(ffmpeg -version 2>/dev/null | head -1 || true)"
+  ollama_log "Bootstrap completed."
+  echo "ollama:      $(ollama --version 2>/dev/null || true)"
+  echo "rclone:      $(rclone version 2>/dev/null | head -n 1 || true)"
+  echo "cloudflared: $(cloudflared --version 2>/dev/null || true)"
+  echo "python:      $(python --version 2>/dev/null || true)"
+  echo "ffmpeg:      $(ffmpeg -version 2>/dev/null | head -n 1 || true)"
+}
+
+main "$@"

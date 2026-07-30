@@ -1,32 +1,27 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# EverForge / Ollama Forge common system tool checker
-# Purpose:
-#   - Check system-level apt packages used by Ollama Forge.
-#   - Install only missing apt packages.
-#   - Check/install shared CLI tools: rclone, cloudflared, ollama.
-#
-# Note:
-#   This script intentionally does not touch the Open WebUI venv.
-#   Python virtual environments isolate Python packages, not system commands.
+# Ollama Forge system prerequisite entry.
+# Core owns common apt and cloudflared capabilities.
+# Ollama remains an Ollama Forge dependency.
 
-log() {
-  echo "[Ollama Forge][check_common_tools] $*"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/core/logging/log.sh"
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/core/utils/common.sh"
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/core/system/apt.sh"
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/core/network/cloudflared.sh"
+
+ollama_log() {
+  core_info "[Ollama Forge][check_common_tools] $*"
 }
 
-need_root() {
-  if [ "${EUID:-$(id -u)}" -ne 0 ]; then
-    echo "[Ollama Forge][check_common_tools][ERROR] Please run as root." >&2
-    exit 1
-  fi
-}
-
-command_exists() {
-  command -v "$1" >/dev/null 2>&1
-}
-
-install_missing_apt_packages() {
+install_common_apt_packages() {
   local packages=(
     curl
     wget
@@ -44,88 +39,45 @@ install_missing_apt_packages() {
     pciutils
     lshw
     ffmpeg
+    rclone
     unzip
     zip
   )
 
-  local missing=()
-  local pkg
-
-  log "Checking apt packages..."
-
-  for pkg in "${packages[@]}"; do
-    if dpkg -s "$pkg" >/dev/null 2>&1; then
-      log "apt package exists: $pkg"
-    else
-      log "apt package missing: $pkg"
-      missing+=("$pkg")
-    fi
-  done
-
-  if [ "${#missing[@]}" -eq 0 ]; then
-    log "All apt packages are already installed."
-    return 0
-  fi
-
-  log "Installing missing apt packages: ${missing[*]}"
-  apt update
-  apt install -y "${missing[@]}"
-}
-
-install_rclone_if_missing() {
-  if command_exists rclone; then
-    log "rclone exists: $(rclone version 2>/dev/null | head -1 || true)"
-    return 0
-  fi
-
-  log "rclone missing. Installing rclone..."
-  curl https://rclone.org/install.sh | bash
-}
-
-install_cloudflared_if_missing() {
-  if command_exists cloudflared; then
-    log "cloudflared exists: $(cloudflared --version 2>/dev/null || true)"
-    return 0
-  fi
-
-  log "cloudflared missing. Installing cloudflared..."
-  wget -O /usr/local/bin/cloudflared \
-    https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
-  chmod +x /usr/local/bin/cloudflared
+  core_apt_install_missing "${packages[@]}"
 }
 
 install_ollama_if_missing() {
-  if command_exists ollama; then
-    log "ollama exists: $(ollama --version 2>/dev/null || true)"
+  if core_command_exists ollama; then
+    ollama_log "Ollama exists: $(ollama --version 2>/dev/null || true)"
     return 0
   fi
 
-  log "ollama missing. Installing Ollama..."
+  ollama_log "Ollama missing. Installing Ollama..."
   curl -fsSL https://ollama.com/install.sh | sh
 }
 
 print_versions() {
   echo
-  log "Versions:"
-  echo "curl:        $(curl --version 2>/dev/null | head -1 || true)"
-  echo "wget:        $(wget --version 2>/dev/null | head -1 || true)"
+  ollama_log "Versions:"
+  echo "curl:        $(curl --version 2>/dev/null | head -n 1 || true)"
+  echo "wget:        $(wget --version 2>/dev/null | head -n 1 || true)"
   echo "git:         $(git --version 2>/dev/null || true)"
   echo "python3.11:  $(python3.11 --version 2>/dev/null || true)"
   echo "pip3:        $(pip3 --version 2>/dev/null || true)"
-  echo "ffmpeg:      $(ffmpeg -version 2>/dev/null | head -1 || true)"
-  echo "rclone:      $(rclone version 2>/dev/null | head -1 || true)"
+  echo "ffmpeg:      $(ffmpeg -version 2>/dev/null | head -n 1 || true)"
+  echo "rclone:      $(rclone version 2>/dev/null | head -n 1 || true)"
   echo "cloudflared: $(cloudflared --version 2>/dev/null || true)"
   echo "ollama:      $(ollama --version 2>/dev/null || true)"
 }
 
 main() {
-  need_root
-  install_missing_apt_packages
-  install_rclone_if_missing
-  install_cloudflared_if_missing
+  core_require_root
+  install_common_apt_packages
+  core_cloudflared_install
   install_ollama_if_missing
   print_versions
-  log "Common tools check completed."
+  ollama_log "Common tools check completed."
 }
 
 main "$@"
