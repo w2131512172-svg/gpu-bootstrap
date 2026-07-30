@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+R2_SYNC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CORE_REPO_ROOT="$(cd "${R2_SYNC_DIR}/../.." && pwd)"
+# shellcheck disable=SC1091
+source "${CORE_REPO_ROOT}/core/storage/rclone.sh"
+
 DRY_RUN=false
 MODEL_TYPE=""
 MODEL_NAMES=""
@@ -122,7 +127,7 @@ LOG_DIR="${AI_FORGE_LOG_DIR:-/root/ai_forge_logs}"
 LOG_FILE="${LOG_FILE:-$LOG_DIR/r2_pull_cold_models.log}"
 
 RCLONE_CONF_SRC="${RCLONE_CONF_SRC:-/root/rclone.conf}"
-RCLONE_CONF_DST="${RCLONE_CONF_DST:-/root/.config/rclone/rclone.conf}"
+RCLONE_CONF_DST="${RCLONE_CONF_DST:-$(core_rclone_config_path)}"
 
 mkdir -p "$LOG_DIR"
 
@@ -218,23 +223,10 @@ if [ "$DRY_RUN" = true ]; then
   RCLONE_DRY_RUN_ARGS+=(--dry-run)
 fi
 
-mkdir -p "$(dirname "$RCLONE_CONF_DST")"
 mkdir -p "$LOCAL_DIR"
 
-# ===== rclone config self-check =====
-if [ -d "$RCLONE_CONF_DST" ]; then
-  die "rclone config path is a directory: $RCLONE_CONF_DST"
-fi
-
-if [ ! -f "$RCLONE_CONF_DST" ]; then
-  if [ -f "$RCLONE_CONF_SRC" ]; then
-    cp "$RCLONE_CONF_SRC" "$RCLONE_CONF_DST"
-    chmod 600 "$RCLONE_CONF_DST"
-    log "[OK] rclone config copied: $RCLONE_CONF_SRC -> $RCLONE_CONF_DST"
-  else
-    die "rclone config not found: $RCLONE_CONF_DST or $RCLONE_CONF_SRC"
-  fi
-fi
+# ===== Core rclone connection =====
+core_rclone_ensure_config "$RCLONE_CONF_SRC" "$RCLONE_CONF_DST"
 
 log "============================================================"
 log "[INFO] AI Forge cold model pull started"
@@ -256,7 +248,7 @@ log "============================================================"
 resolve_remote_filename_case_insensitive() {
   local requested_filename="$1"
 
-  rclone lsf "$REMOTE_DIR" | awk -v target="$requested_filename" '
+  core_rclone_lsf "$REMOTE_DIR" | awk -v target="$requested_filename" '
     BEGIN { target_lc = tolower(target) }
     tolower($0) == target_lc { print; exit }
   '
@@ -311,7 +303,7 @@ pull_one_model() {
   local_file="$LOCAL_DIR/$remote_matched_filename"
 
   log "[COPY] $remote_file -> $local_file"
-  rclone copyto "$remote_file" "$local_file" \
+  core_rclone_copyto "$remote_file" "$local_file" \
     --progress \
     --log-file "$LOG_FILE" \
     --log-level INFO \

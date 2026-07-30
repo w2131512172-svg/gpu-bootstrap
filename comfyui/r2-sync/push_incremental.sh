@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+R2_SYNC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CORE_REPO_ROOT="$(cd "${R2_SYNC_DIR}/../.." && pwd)"
+# shellcheck disable=SC1091
+source "${CORE_REPO_ROOT}/core/storage/rclone.sh"
+
 DRY_RUN=false
 
 if [[ "${1:-}" == "--dry-run" ]]; then
@@ -38,10 +43,9 @@ LOG_DIR="${AI_FORGE_LOG_DIR:-/root/ai_forge_logs}"
 LOG_FILE="${LOG_FILE:-$LOG_DIR/r2_push.log}"
 
 RCLONE_CONF_SRC="${RCLONE_CONF_SRC:-/root/rclone.conf}"
-RCLONE_CONF_DST="${RCLONE_CONF_DST:-/root/.config/rclone/rclone.conf}"
+RCLONE_CONF_DST="${RCLONE_CONF_DST:-$(core_rclone_config_path)}"
 
 mkdir -p "$LOG_DIR"
-mkdir -p "$(dirname "$RCLONE_CONF_DST")"
 
 log() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE"
@@ -56,20 +60,8 @@ die() {
   exit 1
 }
 
-# ===== rclone config self-check =====
-if [ -d "$RCLONE_CONF_DST" ]; then
-  die "rclone config path is a directory: $RCLONE_CONF_DST"
-fi
-
-if [ ! -f "$RCLONE_CONF_DST" ]; then
-  if [ -f "$RCLONE_CONF_SRC" ]; then
-    cp "$RCLONE_CONF_SRC" "$RCLONE_CONF_DST"
-    chmod 600 "$RCLONE_CONF_DST"
-    log "[OK] rclone config copied: $RCLONE_CONF_SRC -> $RCLONE_CONF_DST"
-  else
-    die "rclone config not found: $RCLONE_CONF_DST or $RCLONE_CONF_SRC"
-  fi
-fi
+# ===== Core rclone connection =====
+core_rclone_ensure_config "$RCLONE_CONF_SRC" "$RCLONE_CONF_DST"
 
 [ -d "$COMFYUI_ROOT" ] || die "COMFYUI_ROOT not found: $COMFYUI_ROOT"
 
@@ -179,7 +171,7 @@ sync_dir() {
 
   if is_strict_dir "$item"; then
     log "[SYNC][STRICT] $item -> $dst"
-    rclone sync "$src" "$dst" \
+    core_rclone_sync "$src" "$dst" \
       "${COMMON_EXCLUDES[@]}" \
       --transfers 8 \
       --checkers 16 \
@@ -190,7 +182,7 @@ sync_dir() {
       "${RCLONE_DRY_RUN_ARGS[@]}"
   else
     log "[COPY][ADDITIVE] $item -> $dst"
-    rclone copy "$src" "$dst" \
+    core_rclone_copy "$src" "$dst" \
       "${COMMON_EXCLUDES[@]}" \
       --transfers 8 \
       --checkers 16 \
@@ -213,7 +205,7 @@ copy_file() {
   fi
 
   log "[COPY][FILE] $item -> $dst/"
-  rclone copyto "$src" "$dst/$item" \
+  core_rclone_copyto "$src" "$dst/$item" \
     --progress \
     --log-file "$LOG_FILE" \
     --log-level INFO \
@@ -231,14 +223,14 @@ list_remote_files() {
   local output_file="$2"
 
   : > "$output_file"
-  rclone lsf "$remote_dir" --files-only > "$output_file" 2>/dev/null || true
+  core_rclone_lsf "$remote_dir" --files-only > "$output_file" 2>/dev/null || true
 }
 
 copy_model_file() {
   local src_file="$1"
   local dst_file="$2"
 
-  rclone copyto "$src_file" "$dst_file" \
+  core_rclone_copyto "$src_file" "$dst_file" \
     --progress \
     --log-file "$LOG_FILE" \
     --log-level INFO \
@@ -303,7 +295,7 @@ sync_models_misc() {
   fi
 
   log "[COPY][ADDITIVE] models misc -> $dst/ excluding loras/checkpoints"
-  rclone copy "$src" "$dst" \
+  core_rclone_copy "$src" "$dst" \
     "${COMMON_EXCLUDES[@]}" \
     "${MODEL_MISC_EXCLUDES[@]}" \
     --transfers 8 \

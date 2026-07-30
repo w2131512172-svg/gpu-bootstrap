@@ -90,3 +90,18 @@ core_rclone_sync() {
   core_rclone_require || return 1
   rclone sync "$@"
 }
+
+core_rclone_lsf() {
+  core_rclone_require || return 1
+  rclone lsf "$@"
+}
+
+core_rclone_lsd() {
+  core_rclone_require || return 1
+  rclone lsd "$@"
+}
+
+core_rclone_listremotes() {
+  core_rclone_require || return 1
+  rclone listremotes "$@"
+}

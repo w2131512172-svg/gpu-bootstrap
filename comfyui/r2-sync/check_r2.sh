@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -u
 
+R2_SYNC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CORE_REPO_ROOT="$(cd "${R2_SYNC_DIR}/../.." && pwd)"
+# shellcheck disable=SC1091
+source "${CORE_REPO_ROOT}/core/storage/rclone.sh"
+
 LOG_DIR="${AI_FORGE_LOG_DIR:-/root/ai_forge_logs}"
 LOG_FILE="$LOG_DIR/r2_check.log"
 
@@ -8,7 +13,7 @@ COMFYUI_ROOT="${COMFYUI_ROOT:-/root/ComfyUI}"
 R2_REMOTE="${R2_REMOTE:-r2-assets:comfyui-assets/ComfyUI}"
 
 RCLONE_CONF_SRC="${RCLONE_CONF_SRC:-/root/rclone.conf}"
-RCLONE_CONF_DST="${RCLONE_CONF_DST:-/root/.config/rclone/rclone.conf}"
+RCLONE_CONF_DST="${RCLONE_CONF_DST:-$(core_rclone_config_path)}"
 
 R2_PULL_LOG="$LOG_DIR/r2_pull.log"
 R2_PUSH_LOG="$LOG_DIR/r2_push.log"
@@ -41,7 +46,7 @@ log "R2_REMOTE=$R2_REMOTE"
 log "LOG_FILE=$LOG_FILE"
 
 # ===== rclone binary =====
-if command -v rclone >/dev/null 2>&1; then
+if core_rclone_require; then
   ok "rclone found: $(command -v rclone)"
   rclone version | head -n 1 | tee -a "$LOG_FILE"
 else
@@ -66,7 +71,7 @@ else
 fi
 
 # ===== remote availability =====
-if rclone lsd "$R2_REMOTE" >> "$LOG_FILE" 2>&1; then
+if core_rclone_lsd "$R2_REMOTE" >> "$LOG_FILE" 2>&1; then
   ok "R2 remote accessible: $R2_REMOTE"
 else
   fail "unable to access R2 remote: $R2_REMOTE"

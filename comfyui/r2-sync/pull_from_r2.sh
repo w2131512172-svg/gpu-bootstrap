@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+R2_SYNC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CORE_REPO_ROOT="$(cd "${R2_SYNC_DIR}/../.." && pwd)"
+# shellcheck disable=SC1091
+source "${CORE_REPO_ROOT}/core/storage/rclone.sh"
+
 # ============================================================
 # AI Forge - R2 Pull Assets
 # Purpose:
@@ -25,10 +30,9 @@ LOG_DIR="${AI_FORGE_LOG_DIR:-/root/ai_forge_logs}"
 LOG_FILE="${LOG_FILE:-$LOG_DIR/r2_pull.log}"
 
 RCLONE_CONF_SRC="${RCLONE_CONF_SRC:-/root/rclone.conf}"
-RCLONE_CONF_DST="${RCLONE_CONF_DST:-/root/.config/rclone/rclone.conf}"
+RCLONE_CONF_DST="${RCLONE_CONF_DST:-$(core_rclone_config_path)}"
 
 mkdir -p "$LOG_DIR"
-mkdir -p "$(dirname "$RCLONE_CONF_DST")"
 
 log() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE"
@@ -43,20 +47,8 @@ if [ "$DRY_RUN" = true ]; then
   log "[INFO] DRY RUN MODE ENABLED"
 fi
 
-# ===== rclone config self-check =====
-if [ -d "$RCLONE_CONF_DST" ]; then
-  die "rclone config path is a directory: $RCLONE_CONF_DST"
-fi
-
-if [ ! -f "$RCLONE_CONF_DST" ]; then
-  if [ -f "$RCLONE_CONF_SRC" ]; then
-    cp "$RCLONE_CONF_SRC" "$RCLONE_CONF_DST"
-    chmod 600 "$RCLONE_CONF_DST"
-    log "[OK] rclone config copied: $RCLONE_CONF_SRC -> $RCLONE_CONF_DST"
-  else
-    die "rclone config not found: $RCLONE_CONF_DST or $RCLONE_CONF_SRC"
-  fi
-fi
+# ===== Core rclone connection =====
+core_rclone_ensure_config "$RCLONE_CONF_SRC" "$RCLONE_CONF_DST"
 
 # ===== ComfyUI core must already exist =====
 [ -d "$COMFYUI_ROOT" ] || die "COMFYUI_ROOT not found: $COMFYUI_ROOT"
@@ -104,7 +96,7 @@ pull_dir() {
 
   mkdir -p "$dst"
 
-  rclone copy "$src" "$dst" \
+  core_rclone_copy "$src" "$dst" \
     "${COMMON_EXCLUDES[@]}" \
     --create-empty-src-dirs \
     --transfers 8 \
@@ -123,7 +115,7 @@ pull_file() {
 
   log "[COPY][FILE] $src -> $dst"
 
-  rclone copyto "$src" "$dst" \
+  core_rclone_copyto "$src" "$dst" \
     --progress \
     --log-file "$LOG_FILE" \
     --log-level INFO \
