@@ -26,8 +26,6 @@ core_rclone_config_path() {
 }
 
 core_rclone_ensure_config() {
-  core_rclone_require || return 1
-
   local source_config="${1:-}"
   local runtime_config="${2:-$(core_rclone_config_path)}"
 

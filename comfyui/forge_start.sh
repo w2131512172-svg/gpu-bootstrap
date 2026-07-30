@@ -2,6 +2,14 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/core/logging/log.sh"
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/core/config/load_config.sh"
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/core/storage/rclone.sh"
 
 LOG_DIR="${AI_FORGE_LOG_DIR:-/root/ai_forge_logs}"
 FORGE_LOG="${FORGE_LOG:-${LOG_DIR}/forge_start.log}"
@@ -12,13 +20,15 @@ ENV_NAME="${ENV_NAME:-}"
 MINICONDA_DIR="${MINICONDA_DIR:-/root/miniconda3}"
 
 mkdir -p "$LOG_DIR"
+CORE_LOG_FILE="$FORGE_LOG"
+export CORE_LOG_FILE
 
 log() {
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$FORGE_LOG"
+  core_info "$@"
 }
 
 die() {
-  log "[ERROR] $*"
+  core_error "$@"
   exit 1
 }
 
@@ -56,10 +66,7 @@ prepare_private_configs() {
     chmod 600 /root/.env
     log "[OK] chmod 600 /root/.env"
 
-    set -a
-    # shellcheck disable=SC1091
-    source /root/.env
-    set +a
+    core_load_config /root/.env
 
     TORCH_PROFILE="${TORCH_PROFILE:-auto}"
     USER_ENV_NAME="${ENV_NAME:-}"
@@ -69,40 +76,13 @@ prepare_private_configs() {
   fi
 
   local rclone_src="${RCLONE_CONF_SRC:-/root/rclone.conf}"
-  local rclone_dst="${RCLONE_CONF_DST:-/root/.config/rclone/rclone.conf}"
+  local rclone_dst="${RCLONE_CONF_DST:-$(core_rclone_config_path)}"
 
-  mkdir -p "$(dirname "$rclone_dst")"
-
-  if [ -d "$rclone_dst" ]; then
-    die "rclone config runtime path is a directory: $rclone_dst"
-  fi
-
-  if [ -f "$rclone_src" ]; then
-    cp "$rclone_src" "$rclone_dst"
-    chmod 600 "$rclone_src" "$rclone_dst"
-    log "[OK] rclone config staged: $rclone_src -> $rclone_dst"
-  elif [ -f "$rclone_dst" ]; then
-    chmod 600 "$rclone_dst"
-    log "[OK] rclone runtime config exists: $rclone_dst"
+  if [ -f "$rclone_src" ] || [ -f "$rclone_dst" ]; then
+    core_rclone_ensure_config "$rclone_src" "$rclone_dst"
+    [ ! -f "$rclone_src" ] || chmod 600 "$rclone_src"
   else
     log "[WARN] rclone config not found yet: $rclone_src or $rclone_dst"
-  fi
-
-  mkdir -p /root/.cloudflared
-
-  shopt -s nullglob
-  local json_files=(/root/*.json)
-  shopt -u nullglob
-
-  if [ "${#json_files[@]}" -gt 0 ]; then
-    local json_file
-    for json_file in "${json_files[@]}"; do
-      cp "$json_file" "/root/.cloudflared/$(basename "$json_file")"
-      chmod 600 "$json_file" "/root/.cloudflared/$(basename "$json_file")"
-      log "[OK] tunnel credential staged: $json_file -> /root/.cloudflared/$(basename "$json_file")"
-    done
-  else
-    log "[WARN] no /root/*.json tunnel credential found yet"
   fi
 
   log "[OK] private config preparation completed"
