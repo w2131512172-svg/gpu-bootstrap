@@ -1,6 +1,22 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/core/logging/log.sh"
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/core/utils/common.sh"
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/core/system/apt.sh"
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/core/system/platform.sh"
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/core/hardware/gpu.sh"
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/core/network/cloudflared.sh"
+
 # ============================================================
 # AI Forge - Bootstrap V2 cu121 profile
 # Responsibility:
@@ -49,68 +65,46 @@ APT_PACKAGES=(
   lsof
 )
 
+CORE_LOG_FILE="$BOOTSTRAP_LOG"
+export CORE_LOG_FILE
+
 log() {
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$BOOTSTRAP_LOG"
+  core_info "$@"
 }
 
 die() {
-  log "[ERROR] $*"
+  core_error "$@"
   exit 1
 }
 
 section() {
-  log "============================================================"
-  log "$*"
-  log "============================================================"
+  core_section "$@"
 }
 
 preflight_check() {
   section "[1/8] preflight check"
 
-  [ -f /etc/os-release ] || die "Unsupported OS: /etc/os-release missing"
+  core_check_linux_x86_64
+  core_gpu_require_nvidia_smi
 
-  local uname_out
-  uname_out="$(uname -a)"
-  echo "$uname_out" | grep -qi "linux" || die "Not a Linux system"
-  echo "$uname_out" | grep -qi "x86_64" || die "Unsupported architecture: expected x86_64"
-
-  command -v nvidia-smi >/dev/null 2>&1 || die "nvidia-smi not found"
-
-  local smi_output cuda_ver
-  smi_output="$(nvidia-smi 2>/dev/null)" || die "nvidia-smi failed"
-  cuda_ver="$(echo "$smi_output" | sed -n 's/.*CUDA Version: \([0-9.]*\).*/\1/p')"
-
+  local cuda_ver
+  cuda_ver="$(core_gpu_driver_cuda_version)"
   [ -n "$cuda_ver" ] || die "Cannot detect CUDA version from nvidia-smi"
 
-  awk "BEGIN {exit !(\$cuda_ver >= \$REQUIRED_CUDA)}" || die "CUDA too low: detected=$cuda_ver required>=$REQUIRED_CUDA"
+  core_version_ge "$cuda_ver" "$REQUIRED_CUDA" \
+    || die "CUDA too low: detected=$cuda_ver required>=$REQUIRED_CUDA"
 
-  log "[OK] Linux x86_64 detected"
   log "[OK] CUDA driver version detected: $cuda_ver"
 }
 
 install_apt_packages() {
   section "[2/8] apt packages"
-
-  apt-get update
-  apt-get install -y "${APT_PACKAGES[@]}"
-
-  log "[OK] apt packages installed"
+  core_apt_install_missing "${APT_PACKAGES[@]}"
 }
 
 install_cloudflared() {
   section "[3/8] cloudflared"
-
-  if [ -x /usr/local/bin/cloudflared ]; then
-    log "[OK] cloudflared already exists: $(/usr/local/bin/cloudflared --version || true)"
-    return 0
-  fi
-
-  log "[INFO] installing cloudflared to /usr/local/bin/cloudflared"
-  wget -O /tmp/cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
-  chmod +x /tmp/cloudflared
-  mv /tmp/cloudflared /usr/local/bin/cloudflared
-
-  log "[OK] cloudflared installed: $(cloudflared --version || true)"
+  core_cloudflared_install
 }
 
 ensure_conda() {
