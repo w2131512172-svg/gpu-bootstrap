@@ -54,6 +54,11 @@ else
 fi
 
 # ===== rclone config =====
+# Self-heal the runtime config so this check is safe to run independently.
+if ! core_rclone_ensure_config "$RCLONE_CONF_SRC" "$RCLONE_CONF_DST"; then
+  fail "unable to install rclone runtime config"
+fi
+
 if [ -d "$RCLONE_CONF_SRC" ]; then
   fail "RCLONE_CONF_SRC is a directory: $RCLONE_CONF_SRC"
 elif [ -f "$RCLONE_CONF_SRC" ]; then
