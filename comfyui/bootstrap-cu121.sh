@@ -268,22 +268,8 @@ EOF
 setup_shell_env() {
   section "[9/9] shell setup"
 
-  "${MINICONDA_DIR}/bin/conda" init bash
-  "${MINICONDA_DIR}/bin/conda" config --set auto_activate_base false
-
-  if ! grep -q "conda activate ${ENV_NAME}" "$HOME/.bashrc"; then
-    cat >> "$HOME/.bashrc" <<EOF
-
-# Auto-activate AI Forge project env
-if [ -f "${MINICONDA_DIR}/etc/profile.d/conda.sh" ]; then
-  . "${MINICONDA_DIR}/etc/profile.d/conda.sh"
-  conda activate ${ENV_NAME}
-fi
-EOF
-    log "[OK] auto-activate block added to ~/.bashrc"
-  else
-    log "[OK] auto-activate block already exists in ~/.bashrc"
-  fi
+  bash "${SCRIPT_DIR}/environment.sh" cleanup
+  log "[OK] terminal auto-activation disabled; use: everspark comfy shell"
 }
 
 main() {

@@ -26,6 +26,7 @@ Modules:
 
 Examples:
   everspark comfy help
+  everspark comfy shell
   everspark comfy storage check
   everspark comfy service status
   everspark ollama restore

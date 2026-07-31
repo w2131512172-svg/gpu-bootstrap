@@ -11,6 +11,7 @@ ComfyUI Forge commands
 Usage:
   everspark comfy help
   everspark comfy restore
+  everspark comfy shell
 
   everspark comfy storage check
   everspark comfy storage pull [--dry-run]
@@ -53,6 +54,9 @@ case "$command" in
     ;;
   restore)
     run_script "${SCRIPT_DIR}/comfy_start.sh" "$@"
+    ;;
+  shell|env)
+    run_script "${SCRIPT_DIR}/environment.sh" shell "$@"
     ;;
   storage)
     subcommand="${1:-}"
