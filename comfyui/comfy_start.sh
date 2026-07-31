@@ -88,23 +88,18 @@ prepare_private_configs() {
   log "[OK] private config preparation completed"
 }
 
-install_r2sync_cli() {
+install_everspark_cli() {
   log "============================================================"
-  log "[STEP] install r2sync CLI"
+  log "[STEP] install EverSpark Forge CLI"
   log "============================================================"
 
-  local r2sync_src="$SCRIPT_DIR/r2-sync/r2sync"
-  local r2sync_dst="/usr/local/bin/r2sync"
-
-  if [ ! -f "$r2sync_src" ]; then
-    die "r2sync source not found: $r2sync_src"
+  local installer="${REPO_ROOT}/core/cli/install.sh"
+  if [ ! -f "$installer" ]; then
+    die "EverSpark CLI installer not found: $installer"
   fi
 
-  chmod +x "$r2sync_src"
-  ln -sf "$r2sync_src" "$r2sync_dst"
-
-  log "[OK] r2sync executable prepared: $r2sync_src"
-  log "[OK] r2sync symlink installed: $r2sync_dst -> $r2sync_src"
+  bash "$installer"
+  log "[OK] EverSpark Forge CLI is available: everspark help"
 }
 
 detect_torch_profile() {
@@ -180,7 +175,7 @@ log "============================================================"
 
 prepare_private_configs
 
-install_r2sync_cli
+install_everspark_cli
 
 detect_torch_profile
 
@@ -235,5 +230,5 @@ run_step \
 
 log "============================================================"
 log "[SUCCESS] AI Forge full recovery completed 🚀"
-log "[INFO] r2sync CLI available: r2sync help"
+log "[INFO] EverSpark Forge CLI available: everspark help"
 log "============================================================"

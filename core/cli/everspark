@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SOURCE="${BASH_SOURCE[0]}"
+if command -v realpath >/dev/null 2>&1; then
+  SOURCE="$(realpath "$SOURCE")"
+else
+  SOURCE="$(readlink -f "$SOURCE")"
+fi
+
+CLI_DIR="$(cd "$(dirname "$SOURCE")" && pwd)"
+REPO_ROOT="$(cd "${CLI_DIR}/../.." && pwd)"
+
+usage() {
+  cat <<'EOF'
+EverSpark Forge CLI
+
+Usage:
+  everspark help
+  everspark comfy <command>
+  everspark ollama <command>
+
+Modules:
+  comfy    ComfyUI Forge restore, storage, models, and service commands
+  ollama   Ollama Forge restore and service commands
+
+Examples:
+  everspark comfy help
+  everspark comfy storage check
+  everspark comfy service status
+  everspark ollama restore
+  everspark ollama service status
+EOF
+}
+
+die() {
+  echo "[ERROR] $*" >&2
+  echo >&2
+  usage >&2
+  exit 1
+}
+
+module="${1:-help}"
+if [ "$#" -gt 0 ]; then
+  shift
+fi
+
+case "$module" in
+  help|-h|--help)
+    usage
+    ;;
+  comfy|comfyui)
+    handler="${REPO_ROOT}/comfyui/cli.sh"
+    [ -f "$handler" ] || die "ComfyUI Forge CLI handler not found: $handler"
+    exec bash "$handler" "$@"
+    ;;
+  ollama)
+    handler="${REPO_ROOT}/ollama-forge/cli.sh"
+    [ -f "$handler" ] || die "Ollama Forge CLI handler not found: $handler"
+    exec bash "$handler" "$@"
+    ;;
+  *)
+    die "unknown module: $module"
+    ;;
+esac
