@@ -16,10 +16,24 @@ source "${REPO_ROOT}/core/config/load_config.sh"
 
 FORGE_ROOT="${FORGE_ROOT:-${SCRIPT_DIR}}"
 CONFIG_FILE="${CONFIG_FILE:-${FORGE_ROOT}/config.env}"
+CONFIG_TEMPLATE="${CONFIG_TEMPLATE:-${FORGE_ROOT}/config.env.example}"
 CHECK_COMMON_TOOLS="${FORGE_ROOT}/check_common_tools.sh"
 RESTORE_SCRIPT="${FORGE_ROOT}/restore_from_r2.sh"
 START_ALL_SCRIPT="${FORGE_ROOT}/Ollama_start.sh"
 CLI_INSTALLER="${REPO_ROOT}/core/cli/install.sh"
+
+prepare_config() {
+  if [ -f "$CONFIG_FILE" ]; then
+    chmod 600 "$CONFIG_FILE"
+    core_ok "[Ollama Forge][restore] Config ready: $CONFIG_FILE"
+    return 0
+  fi
+
+  core_require_file "$CONFIG_TEMPLATE"
+  cp "$CONFIG_TEMPLATE" "$CONFIG_FILE"
+  chmod 600 "$CONFIG_FILE"
+  core_ok "[Ollama Forge][restore] Config created: $CONFIG_TEMPLATE -> $CONFIG_FILE"
+}
 
 run_script() {
   local script="$1"
@@ -35,8 +49,9 @@ main() {
   core_info "[Ollama Forge][restore] Restore started."
 
   run_script "$CLI_INSTALLER"
-  run_script "$CHECK_COMMON_TOOLS"
+  prepare_config
   core_load_config "$CONFIG_FILE"
+  run_script "$CHECK_COMMON_TOOLS"
   run_script "$RESTORE_SCRIPT"
 
   run_script "$START_ALL_SCRIPT"
