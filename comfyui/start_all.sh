@@ -2,6 +2,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/core/hardware/gpu_assignment.sh"
 
 # ===== load global env =====
 if [ -f /root/.env ]; then
@@ -172,6 +176,7 @@ stop_comfy() {
 start_comfy() {
   kill_wrong_services
   activate_project_env
+  core_gpu_assign_forge comfy
 
   if lsof -i :"${CF_LOCAL_PORT}" >/tmp/ai_forge_port.log 2>&1; then
     log "[WARN] port ${CF_LOCAL_PORT} occupied:"

@@ -8,6 +8,8 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 source "${REPO_ROOT}/core/logging/log.sh"
 # shellcheck disable=SC1091
 source "${REPO_ROOT}/core/config/load_config.sh"
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/core/hardware/gpu_assignment.sh"
 
 CONFIG_FILE="${CONFIG_FILE:-${SCRIPT_DIR}/config.env}"
 if [ -f "$CONFIG_FILE" ]; then
@@ -20,6 +22,7 @@ OLLAMA_HOST="${OLLAMA_HOST:-127.0.0.1:${OLLAMA_PORT}}"
 export OLLAMA_HOST
 
 core_info "[Ollama Forge] Starting Ollama."
+core_gpu_assign_forge ollama
 
 if ! pgrep -x ollama >/dev/null 2>&1; then
   nohup ollama serve > "$OLLAMA_LOG" 2>&1 &
