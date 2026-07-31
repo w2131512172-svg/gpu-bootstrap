@@ -37,6 +37,5 @@ core_rclone_copy "$REMOTE_SOURCE" "$OLLAMA_HOME" \
   --fast-list \
   --log-file="$RCLONE_LOG"
 
-core_ok "[Ollama Forge] Restore completed."
-core_info "[Ollama Forge] Verifying Ollama state."
-ollama list
+core_ok "[Ollama Forge] Remote Ollama data restored."
+core_info "[Ollama Forge] Model state will be verified after Ollama starts."

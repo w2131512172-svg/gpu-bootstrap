@@ -18,7 +18,6 @@ FORGE_ROOT="${FORGE_ROOT:-${SCRIPT_DIR}}"
 CONFIG_FILE="${CONFIG_FILE:-${FORGE_ROOT}/config.env}"
 CHECK_COMMON_TOOLS="${FORGE_ROOT}/check_common_tools.sh"
 RESTORE_SCRIPT="${FORGE_ROOT}/restore_from_r2.sh"
-PULL_MODELS_SCRIPT="${FORGE_ROOT}/pull_models.sh"
 START_ALL_SCRIPT="${FORGE_ROOT}/start_all.sh"
 
 run_script() {
@@ -37,12 +36,6 @@ main() {
   run_script "$CHECK_COMMON_TOOLS"
   core_load_config "$CONFIG_FILE"
   run_script "$RESTORE_SCRIPT"
-
-  if [ -f "${FORGE_ROOT}/models.txt" ]; then
-    run_script "$PULL_MODELS_SCRIPT"
-  else
-    core_warn "[Ollama Forge][restore] models.txt not found; skipping model pull."
-  fi
 
   run_script "$START_ALL_SCRIPT"
 
