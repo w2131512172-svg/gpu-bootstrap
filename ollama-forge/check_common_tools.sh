@@ -36,6 +36,7 @@ install_common_apt_packages() {
     rclone
     unzip
     zip
+    zstd
   )
 
   core_apt_install_missing "${packages[@]}"
