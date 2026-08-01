@@ -1,0 +1,73 @@
+{
+  "4": {
+    "inputs": {
+      "ckpt_name": "boleromix_WAI_NSFW_illustrious-SDXL.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {"title": "Checkpoint加载器（简易）"}
+  },
+  "5": {
+    "inputs": {"width": 1024, "height": 1536, "batch_size": 1},
+    "class_type": "EmptyLatentImage",
+    "_meta": {"title": "空Latent图像"}
+  },
+  "7": {
+    "inputs": {
+      "text": "low quality, worst quality, lowres, bad anatomy, bad hands, missing fingers, extra fingers, mutated hands, poorly drawn hands, poorly drawn face, mutation, deformed, extra limbs, fused fingers, long neck, ugly, text, watermark, signature, monochrome, grayscale, 3d, realistic, photo",
+      "clip": ["4", 1]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {"title": "CLIP文本编码"}
+  },
+  "8": {
+    "inputs": {"samples": ["31", 0], "vae": ["14", 0]},
+    "class_type": "VAEDecode",
+    "_meta": {"title": "VAE解码"}
+  },
+  "9": {
+    "inputs": {"filename_prefix": "ComfyUI", "images": ["8", 0]},
+    "class_type": "SaveImage",
+    "_meta": {"title": "保存图像"}
+  },
+  "10": {
+    "inputs": {
+      "lora_stack": "[{\"on\":true,\"lora\":\"2ageandheig.safetensors\",\"strength\":1.8}]",
+      "➕ Add LoRA": null,
+      "Toggle All LoRAs": null,
+      "Enable LoRA 1": true,
+      "LoRA 1": "2ageandheig.safetensors",
+      "Strength 1": 1.8,
+      "Remove LoRA 1": null,
+      "model": ["4", 0],
+      "clip": ["4", 1]
+    },
+    "class_type": "MultiLoRAStack",
+    "_meta": {"title": "Multi LoRA Stack"}
+  },
+  "12": {
+    "inputs": {"text": "", "clip": ["10", 1]},
+    "class_type": "PCLazyTextEncode",
+    "_meta": {"title": "PC: Schedule Prompt"}
+  },
+  "14": {
+    "inputs": {"vae_name": "SDXL/sdxl_vae.safetensors"},
+    "class_type": "VAELoader",
+    "_meta": {"title": "加载VAE"}
+  },
+  "31": {
+    "inputs": {
+      "seed": 664262021465624,
+      "steps": 45,
+      "cfg": 7,
+      "sampler_name": "dpmpp_sde_gpu",
+      "scheduler": "normal",
+      "denoise": 1,
+      "model": ["10", 0],
+      "positive": ["12", 0],
+      "negative": ["7", 0],
+      "latent_image": ["5", 0]
+    },
+    "class_type": "KSampler",
+    "_meta": {"title": "K采样器"}
+  }
+}
