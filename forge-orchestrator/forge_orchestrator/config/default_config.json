@@ -1,0 +1,16 @@
+{
+  "orchestrator": {"host": "127.0.0.1", "port": 8765, "request_timeout": 600},
+  "ollama": {
+    "base_url": "http://127.0.0.1:11434",
+    "model": "gemma3test:latest",
+    "timeout": 180,
+    "max_model_retries": 3,
+    "supported_models": ["illustrious"]
+  },
+  "comfyui": {"base_url": "http://127.0.0.1:8188", "timeout": 60},
+  "workflow": {
+    "template": "workflow/base_workflow_api.json",
+    "positive_prompt_node": "",
+    "negative_prompt_node": ""
+  }
+}

@@ -19,10 +19,12 @@ Usage:
   everspark help
   everspark comfy <command>
   everspark ollama <command>
+  everspark orchestrator <command>
 
 Modules:
-  comfy    ComfyUI Forge restore, storage, models, and service commands
-  ollama   Ollama Forge restore and service commands
+  comfy         ComfyUI Forge restore, storage, models, and service commands
+  ollama        Ollama Forge restore and service commands
+  orchestrator  Persistent task core and Chinese CLI console
 
 Examples:
   everspark comfy help
@@ -31,6 +33,8 @@ Examples:
   everspark comfy service status
   everspark ollama restore
   everspark ollama service status
+  everspark orchestrator start
+  everspark orchestrator console
 EOF
 }
 
@@ -58,6 +62,11 @@ case "$module" in
   ollama)
     handler="${REPO_ROOT}/ollama-forge/cli.sh"
     [ -f "$handler" ] || die "Ollama Forge CLI handler not found: $handler"
+    exec bash "$handler" "$@"
+    ;;
+  orchestrator|forge-orchestrator)
+    handler="${REPO_ROOT}/forge-orchestrator/cli.sh"
+    [ -f "$handler" ] || die "Forge Orchestrator CLI handler not found: $handler"
     exec bash "$handler" "$@"
     ;;
   *)
