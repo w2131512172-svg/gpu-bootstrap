@@ -3,7 +3,9 @@ from __future__ import annotations
 import threading
 from typing import Any
 
+from .context_store import ContextStore
 from .task_runner import TaskRunner
+from .text import normalize_unicode
 
 
 class BusyError(RuntimeError):
@@ -13,17 +15,38 @@ class BusyError(RuntimeError):
 class Orchestrator:
     def __init__(self, config: dict[str, Any]):
         self.runner = TaskRunner(config)
+        context_config = config["context"]
+        self.context = ContextStore(
+            context_config["database"],
+            context_config.get("max_history_messages", 20),
+        )
         self._task_lock = threading.Lock()
 
-    def submit(self, user_text: str) -> dict[str, Any]:
-        text = user_text.strip()
+    def submit(self, user_text: str, session_id: str) -> dict[str, Any]:
+        text = normalize_unicode(user_text).strip()
+        session = normalize_unicode(session_id).strip()
         if not text:
             raise ValueError("Task text cannot be empty")
+        if not session:
+            raise ValueError("session_id cannot be empty")
+        if len(session) > 128:
+            raise ValueError("session_id is too long")
         if not self._task_lock.acquire(blocking=False):
             raise BusyError("The first-version Orchestrator is already running one task")
         notices: list[str] = []
         try:
-            result = self.runner.run(text, notify=notices.append)
+            history = self.context.get_history(session)
+            result = self.runner.run(text, history=history, notify=notices.append)
+            self.context.record_success(session, text, result)
             return {"ok": True, "notices": notices, "result": result}
         finally:
             self._task_lock.release()
+
+    def get_history(self, session_id: str) -> list[dict[str, str]]:
+        return self.context.get_history(normalize_unicode(session_id).strip())
+
+    def clear_context(self, session_id: str) -> None:
+        session = normalize_unicode(session_id).strip()
+        if not session:
+            raise ValueError("session_id cannot be empty")
+        self.context.clear_session(session)

@@ -18,7 +18,7 @@ class ComfyUIClient:
         self.client_id = str(uuid.uuid4())
 
     def queue_prompt(self, workflow: dict[str, Any]) -> str:
-        request = Request(f"{self.base_url}/prompt", data=json.dumps({"prompt": workflow, "client_id": self.client_id}, ensure_ascii=False).encode("utf-8"), headers={"Content-Type": "application/json; charset=utf-8"}, method="POST")
+        request = Request(f"{self.base_url}/prompt", data=json.dumps({"prompt": workflow, "client_id": self.client_id}, ensure_ascii=True).encode("utf-8"), headers={"Content-Type": "application/json; charset=utf-8"}, method="POST")
         try:
             with urlopen(request, timeout=self.timeout) as response:
                 result = json.loads(response.read().decode("utf-8"))

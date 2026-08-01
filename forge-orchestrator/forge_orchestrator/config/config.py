@@ -21,7 +21,7 @@ def load_config(path: str | Path | None = None) -> dict[str, Any]:
         raise ConfigError(f"Config file not found: {selected}") from exc
     except json.JSONDecodeError as exc:
         raise ConfigError(f"Invalid JSON config: {selected}: {exc}") from exc
-    for section in ("orchestrator", "ollama", "comfyui", "workflow"):
+    for section in ("orchestrator", "ollama", "comfyui", "context", "workflow"):
         if not isinstance(config.get(section), dict):
             raise ConfigError(f"Missing config section: {section}")
     workflow_path = Path(config["workflow"]["template"])

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import secrets
 from typing import Any, Callable
 
 from ..clients.comfyui_client import ComfyUIClient
@@ -18,19 +19,51 @@ class TaskRunner:
         self.workflow = WorkflowManager(config["workflow"])
         self.supported_models = {str(model).strip().lower() for model in config["ollama"].get("supported_models", ["illustrious"])}
         self.max_model_retries = int(config["ollama"].get("max_model_retries", 3))
+        self.max_batch_size = int(config["orchestrator"].get("max_batch_size", 20))
 
-    def run(self, user_text: str, notify: Callable[[str], None] | None = None) -> dict[str, Any]:
-        plan = self._get_valid_plan(user_text, notify or (lambda _message: None))
+    def run(
+        self,
+        user_text: str,
+        history: list[dict[str, str]] | None = None,
+        notify: Callable[[str], None] | None = None,
+    ) -> dict[str, Any]:
+        plan = self._get_valid_plan(
+            user_text, history or [], notify or (lambda _message: None)
+        )
         if plan.status != "over":
             raise TaskError(f"Ollama returned unexpected status: {plan.status}")
-        workflow = self.workflow.build(plan.positive_prompt, plan.negative_prompt)
-        prompt_id = self.comfyui.queue_prompt(workflow)
-        return {"status": "queued", "prompt_id": prompt_id, "model": plan.model, "positive_prompt": plan.positive_prompt, "negative_prompt": plan.negative_prompt}
+        if plan.count < 1 or plan.count > self.max_batch_size:
+            raise TaskError(
+                f"Image count must be between 1 and {self.max_batch_size}: {plan.count}"
+            )
 
-    def _get_valid_plan(self, user_text: str, notify: Callable[[str], None]) -> PromptPlan:
+        items = []
+        for index in range(1, plan.count + 1):
+            seed = secrets.randbelow(2**63)
+            workflow = self.workflow.build(
+                plan.positive_prompt, plan.negative_prompt, seed=seed
+            )
+            prompt_id = self.comfyui.queue_prompt(workflow)
+            items.append({"index": index, "prompt_id": prompt_id, "seed": seed})
+
+        return {
+            "status": "queued",
+            "model": plan.model,
+            "positive_prompt": plan.positive_prompt,
+            "negative_prompt": plan.negative_prompt,
+            "count": plan.count,
+            "items": items,
+        }
+
+    def _get_valid_plan(
+        self,
+        user_text: str,
+        history: list[dict[str, str]],
+        notify: Callable[[str], None],
+    ) -> PromptPlan:
         attempts = self.max_model_retries + 1
         for attempt in range(attempts):
-            plan = self.ollama.generate_prompt(user_text)
+            plan = self.ollama.generate_prompt(user_text, history)
             if plan.model in self.supported_models:
                 return plan
             if attempt < attempts - 1:

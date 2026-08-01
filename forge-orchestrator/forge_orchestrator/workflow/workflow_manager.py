@@ -15,11 +15,16 @@ class WorkflowManager:
         self.template_path = Path(config["template"])
         self.positive_node = str(config.get("positive_prompt_node", "")).strip()
         self.negative_node = str(config.get("negative_prompt_node", "")).strip()
+        self.seed_node = str(config.get("seed_node", "")).strip()
 
-    def build(self, positive_prompt: str, negative_prompt: str) -> dict[str, Any]:
+    def build(
+        self, positive_prompt: str, negative_prompt: str, seed: int | None = None
+    ) -> dict[str, Any]:
         workflow = copy.deepcopy(self._load_template())
         self._replace_text(workflow, self.positive_node, positive_prompt, "positive")
         self._replace_text(workflow, self.negative_node, negative_prompt, "negative")
+        if seed is not None:
+            self._replace_seed(workflow, seed)
         return workflow
 
     def _load_template(self) -> dict[str, Any]:
@@ -48,3 +53,14 @@ class WorkflowManager:
         if not isinstance(inputs, dict) or "text" not in inputs:
             raise WorkflowError(f"Workflow node {node_id} ({label}) has no inputs.text")
         inputs["text"] = prompt
+
+    def _replace_seed(self, workflow: dict[str, Any], seed: int) -> None:
+        if not self.seed_node:
+            raise WorkflowError("The seed_node is not configured")
+        node = workflow.get(self.seed_node)
+        if not isinstance(node, dict):
+            raise WorkflowError(f"Workflow seed node {self.seed_node} was not found")
+        inputs = node.get("inputs")
+        if not isinstance(inputs, dict) or "seed" not in inputs:
+            raise WorkflowError(f"Workflow seed node {self.seed_node} has no inputs.seed")
+        inputs["seed"] = seed
