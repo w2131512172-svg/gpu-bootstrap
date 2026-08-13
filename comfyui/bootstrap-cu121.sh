@@ -179,6 +179,7 @@ PY
     log "[INFO] installing torch stack: torch=$TORCH_VERSION torchvision=$TORCHVISION_VERSION torchaudio=$TORCHAUDIO_VERSION"
     python -m pip install \
       --index-url https://download.pytorch.org/whl/cu121 \
+      --extra-index-url https://pypi.org/simple \
       "torch==${TORCH_VERSION}" \
       "torchvision==${TORCHVISION_VERSION}" \
       "torchaudio==${TORCHAUDIO_VERSION}"
