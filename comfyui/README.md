@@ -21,7 +21,7 @@ Upload private config files to /root, then run forge_start.sh.
 
 ## Main Logs
 
-- /root/everspark_logs/forge_start.log
+- /root/everspark_logs/recovery.log
 - /root/everspark_logs/comfyui.log
 - /root/everspark_logs/cloudflared.log
 - /root/everspark_logs/auto_deps.log

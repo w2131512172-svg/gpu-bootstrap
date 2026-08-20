@@ -283,3 +283,25 @@ core_run_step() {
     return "$exit_code"
   fi
 }
+
+core_run_optional_step() {
+  local name="$1"
+  shift
+  local command_name="${1:-unknown}"
+  core_step_start "$name" "command=$command_name" "optional=true"
+  if "$@"; then
+    core_step_end "$name" ok "optional=true"
+    return 0
+  else
+    local exit_code=$?
+    local now duration=0
+    now="$(date '+%s')"
+    if [ "${CORE_LOG_STEP_NAME:-}" = "$name" ] && [ -n "${CORE_LOG_STEP_STARTED_AT:-}" ]; then
+      duration=$((now - CORE_LOG_STEP_STARTED_AT))
+    fi
+    core_warn step.end "Optional step failed; continuing: $name" \
+      "step=$name" "status=failed" "exit_code=$exit_code" \
+      "duration_seconds=$duration" "optional=true"
+    return 0
+  fi
+}

@@ -27,12 +27,14 @@ core_run_step success true
 if core_run_step expected_failure false; then
   fail "failed command unexpectedly returned success"
 fi
+core_run_optional_step optional_failure false
 
-[ "$(wc -l < "${TEST_ROOT}/shell.log")" -eq 6 ] || fail "unexpected record count"
+[ "$(wc -l < "${TEST_ROOT}/shell.log")" -eq 8 ] || fail "unexpected record count"
 grep -q '"component":"test.shell"' "${TEST_ROOT}/shell.log" || fail "component missing"
 grep -q '"event":"startup.begin"' "${TEST_ROOT}/shell.log" || fail "event missing"
 grep -q '"event":"message"' "${TEST_ROOT}/shell.log" || fail "compatibility event missing"
 grep -q '"token":"\[REDACTED\]"' "${TEST_ROOT}/shell.log" || fail "secret was not redacted"
+grep -q '"optional":"true"' "${TEST_ROOT}/shell.log" || fail "optional step metadata missing"
 if grep -q 'visible-secret\|debug.hidden' "${TEST_ROOT}/shell.log"; then
   fail "secret or filtered debug record leaked"
 fi

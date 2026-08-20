@@ -5,17 +5,17 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 # shellcheck disable=SC1091
+source "${REPO_ROOT}/core/logging/log.sh"
+# shellcheck disable=SC1091
 source "${REPO_ROOT}/core/hardware/gpu_assignment.sh"
 
-# ===== load global env =====
 if [ -f /root/.env ]; then
-  echo "[INFO] loading /root/.env"
   set -a
+  # shellcheck disable=SC1091
   source /root/.env
   set +a
 fi
 
-# ===== defaults =====
 export CF_TUNNEL_UUID="${CF_TUNNEL_UUID:-4515b24f-a792-485b-b138-940ccb52cefd}"
 export CF_HOSTNAME="${CF_HOSTNAME:-comfy.jhinforge.xyz}"
 export CF_LOCAL_PORT="${CF_LOCAL_PORT:-8188}"
@@ -34,16 +34,7 @@ START_LOG="${START_LOG:-${LOG_DIR}/start_all.log}"
 BOOT_REPAIR_LOG="${BOOT_REPAIR_LOG:-${LOG_DIR}/boot_repair.nohup.log}"
 BOOT_REPAIR_SCRIPT="${BOOT_REPAIR_SCRIPT:-${SCRIPT_DIR}/deps/boot_repair.py}"
 
-mkdir -p "$LOG_DIR"
-
-log() {
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$START_LOG"
-}
-
-die() {
-  log "[ERROR] $*"
-  exit 1
-}
+core_log_init comfyui.service "$START_LOG"
 
 usage() {
   cat <<EOF
@@ -59,7 +50,7 @@ EOF
 
 resolve_env_name() {
   if [ -n "${ENV_NAME:-}" ]; then
-    log "[INFO] ENV_NAME provided: ${ENV_NAME}"
+    core_info environment.provided "Service environment was provided" "environment=$ENV_NAME"
     return 0
   fi
 
@@ -68,13 +59,16 @@ resolve_env_name() {
   if [ "$selected_profile" = "auto" ]; then
     if [ -x "${SCRIPT_DIR}/detect_torch_profile.sh" ] || [ -f "${SCRIPT_DIR}/detect_torch_profile.sh" ]; then
       selected_profile="$(bash "${SCRIPT_DIR}/detect_torch_profile.sh" | tail -n 1 | tr -d '[:space:]')"
-      log "[INFO] detected TORCH_PROFILE for service layer: ${selected_profile}"
+      core_info torch.profile.detected "Torch profile detected for service startup" \
+        "profile=$selected_profile"
     else
       selected_profile="cu121"
-      log "[WARN] detect_torch_profile.sh not found; fallback TORCH_PROFILE=${selected_profile}"
+      core_warn torch.detector.missing "Torch profile detector was not found; using fallback" \
+        "profile=$selected_profile"
     fi
   else
-    log "[INFO] TORCH_PROFILE provided for service layer: ${selected_profile}"
+    core_info torch.profile.provided "Torch profile was provided for service startup" \
+      "profile=$selected_profile"
   fi
 
   case "$selected_profile" in
@@ -85,38 +79,43 @@ resolve_env_name() {
       ENV_NAME="torch251-cu121"
       ;;
     *)
-      die "unsupported TORCH_PROFILE for service layer: ${selected_profile}"
+      core_die torch.profile.unsupported "Unsupported Torch profile for service startup" \
+        "profile=$selected_profile"
+      return 1
       ;;
   esac
 
-  export TORCH_PROFILE="$selected_profile"
-  export ENV_NAME
-  log "[INFO] selected conda env for service layer: ${ENV_NAME}"
+  TORCH_PROFILE="$selected_profile"
+  export TORCH_PROFILE ENV_NAME
+  core_ok environment.selected "Service environment selected" \
+    "profile=$TORCH_PROFILE" "environment=$ENV_NAME"
 }
 
 activate_project_env() {
   resolve_env_name
-  log "[INFO] activating conda env for service layer: ${ENV_NAME}"
 
   local conda_sh="${MINICONDA_DIR}/etc/profile.d/conda.sh"
-
   if [ ! -f "$conda_sh" ]; then
-    die "conda.sh not found: $conda_sh"
+    core_die conda.init.missing "Conda initialization script was not found" "path=$conda_sh"
+    return 1
   fi
 
   # shellcheck disable=SC1090
   source "$conda_sh"
   conda activate "$ENV_NAME"
 
-  command -v python >/dev/null 2>&1 || die "python not found after conda activate"
+  if ! command -v python >/dev/null 2>&1; then
+    core_die python.missing "Python was not found after activating the service environment"
+    return 1
+  fi
 
-  log "[OK] service conda env activated: ${ENV_NAME}"
-  log "[INFO] python: $(command -v python)"
-  log "[INFO] python version: $(python --version 2>&1)"
+  core_ok environment.active "Service environment activated" \
+    "environment=$ENV_NAME" "python=$(command -v python)" \
+    "python_version=$(python --version 2>&1)"
 }
 
 kill_wrong_services() {
-  log "[0/3] cleaning wrong services..."
+  core_info service.cleanup "Cleaning incompatible HTTP test services"
   pkill -f "python -m http.server" 2>/dev/null || true
   pkill -f "http.server" 2>/dev/null || true
 }
@@ -128,49 +127,64 @@ is_comfy_running() {
 
 start_boot_repair() {
   if [ ! -f "$BOOT_REPAIR_SCRIPT" ]; then
-    log "[WARN] boot_repair.py not found: ${BOOT_REPAIR_SCRIPT}"
+    core_warn boot_repair.missing "Boot repair script was not found" "path=$BOOT_REPAIR_SCRIPT"
     return 0
   fi
 
   if pgrep -f "${BOOT_REPAIR_SCRIPT}" >/dev/null 2>&1; then
-    log "[INFO] boot_repair.py already running; skip launching another one"
+    core_info boot_repair.running "Boot repair is already running"
     return 0
   fi
 
   mkdir -p "$(dirname "$BOOT_REPAIR_LOG")"
-  log "[INFO] launching boot_repair.py in background"
-  log "[INFO] boot repair nohup log: ${BOOT_REPAIR_LOG}"
-
   nohup python "$BOOT_REPAIR_SCRIPT" \
     --log "$SERVICE_LOG" \
     >> "$BOOT_REPAIR_LOG" 2>&1 &
+
+  core_ok boot_repair.started "Boot repair started in the background" \
+    "pid=$!" "log_file=$BOOT_REPAIR_LOG"
 }
 
 stop_comfy() {
-  log "[INFO] stopping ComfyUI on port ${CF_LOCAL_PORT}..."
+  core_info service.stop.requested "Stopping ComfyUI" "port=$CF_LOCAL_PORT"
 
   if pgrep -f "main.py.*--port ${CF_LOCAL_PORT}" >/dev/null 2>&1; then
     pkill -f "main.py.*--port ${CF_LOCAL_PORT}" 2>/dev/null || true
     sleep 2
   fi
 
-  if lsof -ti :"${CF_LOCAL_PORT}" >/dev/null 2>&1; then
-    log "[WARN] port ${CF_LOCAL_PORT} still occupied, killing port owner..."
-    lsof -ti :"${CF_LOCAL_PORT}" | xargs -r kill 2>/dev/null || true
+  if lsof -ti :"$CF_LOCAL_PORT" >/dev/null 2>&1; then
+    core_warn service.port.occupied "Port is still occupied; stopping the port owner" \
+      "port=$CF_LOCAL_PORT"
+    lsof -ti :"$CF_LOCAL_PORT" | xargs -r kill 2>/dev/null || true
     sleep 2
   fi
 
   if pgrep -f "main.py.*--port ${CF_LOCAL_PORT}" >/dev/null 2>&1; then
-    log "[WARN] ComfyUI still alive, force killing..."
+    core_warn service.stop.escalated "ComfyUI is still running; forcing shutdown"
     pkill -9 -f "main.py.*--port ${CF_LOCAL_PORT}" 2>/dev/null || true
     sleep 1
   fi
 
   if pgrep -f "main.py.*--port ${CF_LOCAL_PORT}" >/dev/null 2>&1; then
-    die "failed to stop ComfyUI"
+    core_die service.stop.failed "Failed to stop ComfyUI" "port=$CF_LOCAL_PORT"
+    return 1
   fi
 
-  log "[OK] ComfyUI stopped"
+  core_ok service.stopped "ComfyUI stopped" "port=$CF_LOCAL_PORT"
+}
+
+report_port_owner() {
+  local report_file
+  report_file="$(mktemp)"
+  if lsof -i :"$CF_LOCAL_PORT" >"$report_file" 2>&1; then
+    core_warn service.port.occupied "ComfyUI port is occupied" "port=$CF_LOCAL_PORT"
+    sed -n '1,40p' "$report_file"
+    rm -f "$report_file"
+    return 0
+  fi
+  rm -f "$report_file"
+  return 1
 }
 
 start_comfy() {
@@ -178,41 +192,47 @@ start_comfy() {
   activate_project_env
   core_gpu_assign_forge comfy
 
-  if lsof -i :"${CF_LOCAL_PORT}" >/tmp/everspark_comfyui_port.log 2>&1; then
-    log "[WARN] port ${CF_LOCAL_PORT} occupied:"
-    cat /tmp/everspark_comfyui_port.log | tee -a "$START_LOG"
-
+  if report_port_owner; then
     if ! pgrep -f "main.py.*--port ${CF_LOCAL_PORT}" >/dev/null 2>&1; then
-      log "[INFO] killing non-ComfyUI process on port ${CF_LOCAL_PORT}..."
-      lsof -ti :"${CF_LOCAL_PORT}" | xargs -r kill
+      core_info service.port.release "Stopping a non-ComfyUI port owner" "port=$CF_LOCAL_PORT"
+      lsof -ti :"$CF_LOCAL_PORT" | xargs -r kill
       sleep 2
     fi
   fi
 
-  log "[1/3] starting ComfyUI..."
-  log "[INFO] startup timeout: ${COMFY_START_TIMEOUT}s"
-  log "[INFO] startup grace: ${COMFY_START_GRACE}s"
+  core_info service.start.requested "Starting ComfyUI" \
+    "port=$CF_LOCAL_PORT" "timeout_seconds=$COMFY_START_TIMEOUT" \
+    "grace_seconds=$COMFY_START_GRACE"
 
   if is_comfy_running; then
-    log "[OK] ComfyUI already running on port ${CF_LOCAL_PORT}"
+    core_ok service.already_running "ComfyUI is already running" "port=$CF_LOCAL_PORT"
     start_boot_repair
     return 0
   fi
 
-  [ -d "$COMFY_DIR" ] || die "COMFY_DIR not found: $COMFY_DIR"
-  [ -f "$COMFY_DIR/main.py" ] || die "ComfyUI main.py not found: $COMFY_DIR/main.py"
+  if [ ! -d "$COMFY_DIR" ]; then
+    core_die service.directory.missing "ComfyUI directory was not found" "path=$COMFY_DIR"
+    return 1
+  fi
+  if [ ! -f "$COMFY_DIR/main.py" ]; then
+    core_die service.entrypoint.missing "ComfyUI entrypoint was not found" "path=$COMFY_DIR/main.py"
+    return 1
+  fi
 
   cd "$COMFY_DIR"
   mkdir -p "$(dirname "$SERVICE_LOG")"
 
-  nohup python main.py --listen 0.0.0.0 --port "${CF_LOCAL_PORT}" \
+  nohup python main.py --listen 0.0.0.0 --port "$CF_LOCAL_PORT" \
     > "$SERVICE_LOG" 2>&1 &
   local comfy_pid=$!
-  log "[INFO] ComfyUI process launched: pid=${comfy_pid}"
+  core_info service.process.started "ComfyUI process launched" \
+    "pid=$comfy_pid" "log_file=$SERVICE_LOG"
 
+  local i
   for i in $(seq 1 "$COMFY_START_TIMEOUT"); do
     if curl -fsS "http://127.0.0.1:${CF_LOCAL_PORT}" >/dev/null 2>&1; then
-      log "[OK] ComfyUI running on port ${CF_LOCAL_PORT}"
+      core_ok service.ready "ComfyUI health check passed" \
+        "port=$CF_LOCAL_PORT" "pid=$comfy_pid"
       start_boot_repair
       return 0
     fi
@@ -222,17 +242,15 @@ start_comfy() {
       continue
     fi
 
-    # During early bootstrap, the original child process can briefly be hard to
-    # match by command line while imports and dependency installs are happening.
-    # Give ComfyUI a short grace window before declaring startup failure.
     if [ "$i" -le "$COMFY_START_GRACE" ]; then
       if pgrep -f "main.py.*--port ${CF_LOCAL_PORT}" >/dev/null 2>&1 \
-        || lsof -ti :"${CF_LOCAL_PORT}" >/dev/null 2>&1; then
+        || lsof -ti :"$CF_LOCAL_PORT" >/dev/null 2>&1; then
         sleep 1
         continue
       fi
 
-      log "[WARN] ComfyUI pid=${comfy_pid} not visible yet; waiting during grace window (${i}/${COMFY_START_GRACE})"
+      core_warn service.process.pending "ComfyUI process is not visible during the grace window" \
+        "pid=$comfy_pid" "attempt=$i" "grace_seconds=$COMFY_START_GRACE"
       sleep 1
       continue
     fi
@@ -242,55 +260,47 @@ start_comfy() {
       continue
     fi
 
-    log "[ERROR] ComfyUI exited"
-    tail -n 120 "$SERVICE_LOG" | tee -a "$START_LOG" || true
-    exit 1
+    core_error service.exited "ComfyUI exited before becoming ready" \
+      "pid=$comfy_pid" "log_file=$SERVICE_LOG"
+    tail -n 120 "$SERVICE_LOG" >&2 || true
+    return 1
   done
 
-  log "[ERROR] ComfyUI healthcheck failed after ${COMFY_START_TIMEOUT}s"
-  tail -n 120 "$SERVICE_LOG" | tee -a "$START_LOG" || true
-  exit 1
+  core_error service.timeout "ComfyUI health check timed out" \
+    "timeout_seconds=$COMFY_START_TIMEOUT" "log_file=$SERVICE_LOG"
+  tail -n 120 "$SERVICE_LOG" >&2 || true
+  return 1
 }
 
 start_tunnel() {
-  log "[2/3] starting tunnel..."
-  bash "${SCRIPT_DIR}/tunnel/start_tunnel.sh" 2>&1 | tee -a "$START_LOG"
+  bash "${SCRIPT_DIR}/tunnel/start_tunnel.sh"
 }
 
 status_all() {
-  log "[INFO] status"
-  log "[INFO] hostname: ${CF_HOSTNAME}"
-  log "[INFO] port: ${CF_LOCAL_PORT}"
-  log "[INFO] ComfyUI log: ${SERVICE_LOG}"
-  log "[INFO] start log: ${START_LOG}"
-  log "[INFO] boot repair log: ${BOOT_REPAIR_LOG}"
+  core_info service.status "Reporting ComfyUI Forge status" \
+    "hostname=$CF_HOSTNAME" "port=$CF_LOCAL_PORT" \
+    "service_log=$SERVICE_LOG" "lifecycle_log=$START_LOG" \
+    "boot_repair_log=$BOOT_REPAIR_LOG"
 
   if is_comfy_running; then
-    log "[OK] ComfyUI HTTP healthcheck passed"
+    core_ok service.health.ready "ComfyUI HTTP health check passed" "port=$CF_LOCAL_PORT"
   else
-    log "[WARN] ComfyUI HTTP healthcheck not ready"
+    core_warn service.health.pending "ComfyUI HTTP health check is not ready" "port=$CF_LOCAL_PORT"
   fi
 
-  lsof -i :"${CF_LOCAL_PORT}" 2>&1 | tee -a "$START_LOG" || true
-  pgrep -af "main.py|cloudflared|boot_repair.py|http.server" 2>&1 | tee -a "$START_LOG" || true
+  lsof -i :"$CF_LOCAL_PORT" 2>&1 || true
+  pgrep -af "main.py|cloudflared|boot_repair.py|http.server" 2>&1 || true
 }
 
 start_all() {
-  log "== [EverSpark Forge] start all =="
-  log "[INFO] hostname: ${CF_HOSTNAME}"
-  log "[INFO] port: ${CF_LOCAL_PORT}"
-  log "[INFO] ComfyUI log: ${SERVICE_LOG}"
+  core_info stack.start "Starting ComfyUI Forge services" \
+    "hostname=$CF_HOSTNAME" "port=$CF_LOCAL_PORT"
 
-  start_comfy
-  start_tunnel
-
-  log "[3/3] final check..."
+  core_run_step comfyui.start start_comfy
+  core_run_step tunnel.start start_tunnel
   status_all
 
-  log "========================================"
-  log "[SUCCESS] EverSpark Forge is ONLINE 🚀"
-  log "👉 https://${CF_HOSTNAME}"
-  log "========================================"
+  core_ok stack.ready "EverSpark Forge is online" "url=https://${CF_HOSTNAME}"
 }
 
 cmd="${1:-start}"
@@ -300,11 +310,11 @@ case "$cmd" in
     start_all
     ;;
   stop)
-    stop_comfy
+    core_run_step comfyui.stop stop_comfy
     ;;
   restart)
-    stop_comfy
-    start_comfy
+    core_run_step comfyui.stop stop_comfy
+    core_run_step comfyui.start start_comfy
     status_all
     ;;
   status)
@@ -315,6 +325,6 @@ case "$cmd" in
     ;;
   *)
     usage
-    die "unknown command: $cmd"
+    core_die command.unknown "Unknown start_all command" "command=$cmd"
     ;;
 esac

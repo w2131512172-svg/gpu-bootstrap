@@ -646,7 +646,7 @@ start_all.sh status
 常见日志：
 
 ```text
-/root/everspark_logs/forge_start.log
+/root/everspark_logs/recovery.log
 /root/everspark_logs/start_all.log
 /root/everspark_logs/comfyui.log
 /root/everspark_logs/cloudflared.log
@@ -659,7 +659,7 @@ start_all.sh status
 排查顺序建议：
 
 ```text
-forge_start.log
+recovery.log
   ↓
 everspark_bootstrap.log
   ↓
@@ -683,7 +683,7 @@ start_all.log
 先看：
 
 ```text
-/root/everspark_logs/forge_start.log
+/root/everspark_logs/recovery.log
 ```
 
 因为它记录每个阶段是否通过。

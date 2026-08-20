@@ -51,6 +51,7 @@ The public functions are:
 - `core_step_start NAME [key=value ...]`
 - `core_step_end NAME [ok|failed] [key=value ...]`
 - `core_run_step NAME COMMAND...`
+- `core_run_optional_step NAME COMMAND...`
 - `core_die EVENT MESSAGE [key=value ...]`
 
 Existing one-argument calls such as `core_info "Config loaded"` remain supported and emit the event `message`. This compatibility form should disappear as callers are migrated.
@@ -112,7 +113,7 @@ The tests cover text and JSON output, level filtering, compatibility calls, reda
 
 - [x] Canonical naming and `EVERSPARK_*` configuration
 - [x] Shell/Python logging foundation and tests
-- [ ] Critical recovery path: bootstrap, recovery, dependencies, R2, tunnel
+- [ ] Critical recovery path: recovery and service entrypoints migrated; bootstrap, dependencies, R2, and tunnel pending
 - [ ] Long-running services: ComfyUI, Ollama Forge, Orchestrator, WebUI
 - [ ] Rotation, retention, log manifest, and status API
 

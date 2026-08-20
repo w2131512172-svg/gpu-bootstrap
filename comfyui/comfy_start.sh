@@ -11,86 +11,40 @@ source "${REPO_ROOT}/core/config/load_config.sh"
 # shellcheck disable=SC1091
 source "${REPO_ROOT}/core/storage/rclone.sh"
 
+prepare_private_env_file() {
+  if [ ! -f /root/.env ] && [ -f /root/env.txt ]; then
+    mv /root/env.txt /root/.env
+  fi
+
+  if [ -f /root/.env ]; then
+    chmod 600 /root/.env
+    set -a
+    # shellcheck disable=SC1091
+    source /root/.env
+    set +a
+  fi
+}
+
+# Load operator configuration before resolving logger paths and runtime defaults.
+prepare_private_env_file
+
 LOG_DIR="${EVERSPARK_LOG_DIR:-/root/everspark_logs}"
-FORGE_LOG="${FORGE_LOG:-${LOG_DIR}/forge_start.log}"
+FORGE_LOG="${FORGE_LOG:-${LOG_DIR}/recovery.log}"
 
 TORCH_PROFILE="${TORCH_PROFILE:-auto}"
 USER_ENV_NAME="${ENV_NAME:-}"
 ENV_NAME="${ENV_NAME:-}"
 MINICONDA_DIR="${MINICONDA_DIR:-/root/miniconda3}"
 
-mkdir -p "$LOG_DIR"
-CORE_LOG_FILE="$FORGE_LOG"
-export CORE_LOG_FILE
-
-log() {
-  core_info "$@"
-}
-
-die() {
-  core_error "$@"
-  exit 1
-}
-
-run_step() {
-  local name="$1"
-  shift
-
-  log "============================================================"
-  log "[STEP] $name"
-  log "[RUN ] $*"
-  log "============================================================"
-
-  if "$@"; then
-    log "[OK] $name completed"
-  else
-    die "$name failed"
-  fi
-}
-
-run_optional_step() {
-  local name="$1"
-  shift
-
-  log "============================================================"
-  log "[OPTIONAL] $name"
-  log "[RUN     ] $*"
-  log "============================================================"
-
-  if "$@"; then
-    log "[OK] optional step completed: $name"
-  else
-    local exit_code=$?
-    core_warn "optional step failed (exit=$exit_code): $name"
-    core_warn "continuing recovery because this component is not required for the ComfyUI Forge core"
-  fi
-}
+core_log_init comfyui.recovery "$FORGE_LOG"
 
 prepare_private_configs() {
-  log "============================================================"
-  log "[STEP] prepare private config files"
-  log "============================================================"
-
-  if [ ! -f /root/.env ] && [ -f /root/env.txt ]; then
-    mv /root/env.txt /root/.env
-    log "[OK] normalized /root/env.txt -> /root/.env"
-  elif [ -f /root/.env ]; then
-    log "[OK] /root/.env exists"
-  else
-    log "[WARN] /root/.env not found; allowed if defaults are enough"
-  fi
+  core_info config.prepare "Preparing private configuration"
 
   if [ -f /root/.env ]; then
-    chmod 600 /root/.env
-    log "[OK] chmod 600 /root/.env"
-
-    core_load_config /root/.env
-
-    TORCH_PROFILE="${TORCH_PROFILE:-auto}"
-    USER_ENV_NAME="${ENV_NAME:-}"
-    ENV_NAME="${ENV_NAME:-}"
-    MINICONDA_DIR="${MINICONDA_DIR:-/root/miniconda3}"
-    log "[OK] loaded /root/.env"
+    core_ok config.env.ready "Private environment file is ready" "path=/root/.env"
+  else
+    core_warn config.env.missing "Private environment file was not found; defaults will be used"
   fi
 
   local rclone_src="${RCLONE_CONF_SRC:-/root/rclone.conf}"
@@ -100,102 +54,83 @@ prepare_private_configs() {
     core_rclone_ensure_config "$rclone_src" "$rclone_dst"
     [ ! -f "$rclone_src" ] || chmod 600 "$rclone_src"
   else
-    log "[WARN] rclone config not found yet: $rclone_src or $rclone_dst"
+    core_warn config.rclone.missing "rclone configuration is not available yet" \
+      "source=$rclone_src" "runtime=$rclone_dst"
   fi
 
-  log "[OK] private config preparation completed"
+  core_ok config.ready "Private configuration preparation completed"
 }
 
 install_everspark_cli() {
-  log "============================================================"
-  log "[STEP] install EverSpark Forge CLI"
-  log "============================================================"
-
   local installer="${REPO_ROOT}/core/cli/install.sh"
   if [ ! -f "$installer" ]; then
-    die "EverSpark CLI installer not found: $installer"
+    core_die cli.installer.missing "EverSpark CLI installer was not found" "path=$installer"
+    return 1
   fi
 
   bash "$installer"
-  log "[OK] EverSpark Forge CLI is available: everspark help"
+  core_ok cli.ready "EverSpark Forge CLI is available" "command=everspark"
 }
 
 detect_torch_profile() {
   if [ "$TORCH_PROFILE" != "auto" ]; then
-    log "[INFO] TORCH_PROFILE forced by env: $TORCH_PROFILE"
+    core_info torch.profile.provided "Torch profile was provided" "profile=$TORCH_PROFILE"
   else
     local detector="$SCRIPT_DIR/detect_torch_profile.sh"
-
-    [ -f "$detector" ] || die "detect_torch_profile.sh not found: $detector"
+    if [ ! -f "$detector" ]; then
+      core_die torch.detector.missing "Torch profile detector was not found" "path=$detector"
+      return 1
+    fi
 
     TORCH_PROFILE="$(bash "$detector")"
-
-    log "[INFO] detected TORCH_PROFILE=$TORCH_PROFILE"
+    core_info torch.profile.detected "Torch profile detected" "profile=$TORCH_PROFILE"
   fi
 
   case "$TORCH_PROFILE" in
     cu128)
-      if [ -n "$USER_ENV_NAME" ]; then
-        ENV_NAME="$USER_ENV_NAME"
-        log "[INFO] ENV_NAME forced by env: $ENV_NAME"
-      else
-        ENV_NAME="torch-cu128"
-      fi
+      ENV_NAME="${USER_ENV_NAME:-torch-cu128}"
       ;;
     cu121)
-      if [ -n "$USER_ENV_NAME" ]; then
-        ENV_NAME="$USER_ENV_NAME"
-        log "[INFO] ENV_NAME forced by env: $ENV_NAME"
-      else
-        ENV_NAME="torch251-cu121"
-      fi
+      ENV_NAME="${USER_ENV_NAME:-torch251-cu121}"
       ;;
     *)
-      die "unsupported TORCH_PROFILE: $TORCH_PROFILE"
+      core_die torch.profile.unsupported "Unsupported Torch profile" "profile=$TORCH_PROFILE"
+      return 1
       ;;
   esac
 
-  export TORCH_PROFILE
-  export ENV_NAME
+  export TORCH_PROFILE ENV_NAME
+  core_ok torch.environment.selected "Project environment selected" \
+    "profile=$TORCH_PROFILE" "environment=$ENV_NAME"
 }
 
 activate_project_env() {
-  log "============================================================"
-  log "[STEP] activate project conda env"
-  log "[INFO] TORCH_PROFILE=$TORCH_PROFILE"
-  log "[INFO] ENV_NAME=$ENV_NAME"
-  log "[INFO] MINICONDA_DIR=$MINICONDA_DIR"
-  log "============================================================"
-
   local conda_sh="${MINICONDA_DIR}/etc/profile.d/conda.sh"
-
   if [ ! -f "$conda_sh" ]; then
-    die "conda.sh not found: $conda_sh"
+    core_die conda.init.missing "Conda initialization script was not found" "path=$conda_sh"
+    return 1
   fi
 
   # shellcheck disable=SC1090
   source "$conda_sh"
   conda activate "$ENV_NAME"
 
-  command -v python >/dev/null 2>&1 || die "python not found after conda activate"
+  if ! command -v python >/dev/null 2>&1; then
+    core_die python.missing "Python was not found after activating the project environment"
+    return 1
+  fi
 
-  log "[OK] conda env activated: $ENV_NAME"
-  log "[INFO] python: $(command -v python)"
-  log "[INFO] python version: $(python --version 2>&1)"
+  core_ok conda.environment.active "Project environment activated" \
+    "environment=$ENV_NAME" "python=$(command -v python)" \
+    "python_version=$(python --version 2>&1)"
 }
 
-log "============================================================"
-log "EverSpark Forge full recovery started"
-log "SCRIPT_DIR=$SCRIPT_DIR"
-log "LOG_DIR=$LOG_DIR"
-log "FORGE_LOG=$FORGE_LOG"
-log "============================================================"
+core_info recovery.start "EverSpark Forge recovery started" \
+  "script_dir=$SCRIPT_DIR" "log_file=$FORGE_LOG"
 
-prepare_private_configs
-
-install_everspark_cli
-
-detect_torch_profile
+core_run_step config.prepare prepare_private_configs
+core_run_step cli.install install_everspark_cli
+core_run_step torch.detect detect_torch_profile
 
 case "$TORCH_PROFILE" in
   cu128)
@@ -204,49 +139,17 @@ case "$TORCH_PROFILE" in
   cu121)
     BOOTSTRAP_SCRIPT="$SCRIPT_DIR/bootstrap-cu121.sh"
     ;;
-  *)
-    die "unsupported TORCH_PROFILE: $TORCH_PROFILE"
-    ;;
 esac
 
-log "[INFO] selected bootstrap: $BOOTSTRAP_SCRIPT"
-log "[INFO] selected conda env: $ENV_NAME"
+core_run_step environment.bootstrap bash "$BOOTSTRAP_SCRIPT"
+core_run_step environment.activate activate_project_env
+core_run_step comfyui.restore bash "$SCRIPT_DIR/restore_comfyui_core.sh"
+core_run_step r2.check bash "$SCRIPT_DIR/r2-sync/check_r2.sh"
+core_run_step r2.pull bash "$SCRIPT_DIR/r2-sync/pull_from_r2.sh"
+core_run_step dependencies.check bash "$SCRIPT_DIR/deps/check_deps.sh"
+core_run_step dependencies.install python "$SCRIPT_DIR/deps/auto_deps.py"
+core_run_optional_step sam3.repair bash "$SCRIPT_DIR/deps/fix_sam3_env.sh"
+core_run_step services.start bash "$SCRIPT_DIR/start_all.sh" start
 
-run_step \
-  "environment bootstrap" \
-  bash "$BOOTSTRAP_SCRIPT"
-
-activate_project_env
-
-run_step \
-  "restore ComfyUI core" \
-  bash "$SCRIPT_DIR/restore_comfyui_core.sh"
-
-run_step \
-  "R2 self-check" \
-  bash "$SCRIPT_DIR/r2-sync/check_r2.sh"
-
-run_step \
-  "R2 asset pull" \
-  bash "$SCRIPT_DIR/r2-sync/pull_from_r2.sh"
-
-run_step \
-  "dependency self-check" \
-  bash "$SCRIPT_DIR/deps/check_deps.sh"
-
-run_step \
-  "dependency install" \
-  python "$SCRIPT_DIR/deps/auto_deps.py"
-
-run_optional_step \
-  "comfyui-sam3 isolation env repair" \
-  bash "$SCRIPT_DIR/deps/fix_sam3_env.sh"
-
-run_step \
-  "service startup" \
-  bash "$SCRIPT_DIR/start_all.sh" start
-
-log "============================================================"
-log "[SUCCESS] EverSpark Forge full recovery completed 🚀"
-log "[INFO] EverSpark Forge CLI available: everspark help"
-log "============================================================"
+core_ok recovery.complete "EverSpark Forge recovery completed" \
+  "profile=$TORCH_PROFILE" "environment=$ENV_NAME"
