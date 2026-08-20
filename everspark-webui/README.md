@@ -60,4 +60,32 @@ Environment variables can also override individual settings:
 - `EVERSPARK_LOG_DIR`
 - `EVERSPARK_LOG_MANIFEST`
 
-Do not commit credentials or Cloudflare tunnel tokens into this directory.
+## Cloudflare Tunnel
+
+The WebUI tunnel uses the shared implementation in `core/network/tunnel`.
+Only module entrypoints and a credential-free configuration example live here.
+
+On a new Pod, prepare the deployment files:
+
+```bash
+cp everspark-webui/tunnel/env.example /root/.env.webui
+chmod 600 /root/.env.webui
+```
+
+Replace `REPLACE_WITH_TUNNEL_UUID` in `/root/.env.webui`, then place the
+matching tunnel credential at `/root/<Tunnel-UUID>.json`.
+
+Start, check, or stop the dedicated WebUI tunnel with:
+
+```bash
+bash everspark-webui/tunnel/start_tunnel.sh
+bash everspark-webui/tunnel/check_tunnel.sh
+bash everspark-webui/tunnel/stop_tunnel.sh
+```
+
+The start command renders `/root/.cloudflared/webui.yml` at runtime from the
+shared Core template. The generated file is deployment state and must not be
+committed.
+
+Do not commit credentials, `/root/.env.webui`, generated tunnel configuration,
+or Cloudflare tunnel tokens into this directory.
