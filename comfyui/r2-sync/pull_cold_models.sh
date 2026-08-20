@@ -6,6 +6,11 @@ CORE_REPO_ROOT="$(cd "${R2_SYNC_DIR}/../.." && pwd)"
 # shellcheck disable=SC1091
 source "${CORE_REPO_ROOT}/core/storage/rclone.sh"
 
+LOG_DIR="${EVERSPARK_LOG_DIR:-/root/everspark_logs}"
+LOG_FILE="${LOG_FILE:-${LOG_DIR}/r2.log}"
+RCLONE_LOG="${RCLONE_LOG:-${LOG_DIR}/rclone.log}"
+core_log_init r2.pull.cold "$LOG_FILE"
+
 DRY_RUN=false
 MODEL_TYPE=""
 MODEL_NAMES=""
@@ -66,14 +71,14 @@ case "$MODEL_TYPE" in
     MODEL_BUCKET="diffusion_models"
     ;;
   *)
-    echo "[ERROR] Missing or invalid --type. Use: lora, checkpoint, or diffusion"
+    core_error r2.arguments "Missing or invalid --type. Use: lora, checkpoint, or diffusion"
     usage
     exit 1
     ;;
 esac
 
 if [ -z "$MODEL_NAMES" ]; then
-  echo "[ERROR] Missing model names. Example: xxx,yyy,zzz"
+  core_error r2.arguments "Missing model names. Example: xxx,yyy,zzz"
   usage
   exit 1
 fi
@@ -81,8 +86,6 @@ fi
 COMFYUI_ROOT="${COMFYUI_ROOT:-/root/ComfyUI}"
 R2_ROOT_REMOTE="${R2_ROOT_REMOTE:-r2-assets:comfyui-assets}"
 R2_COLD_REMOTE="${R2_COLD_REMOTE:-$R2_ROOT_REMOTE/models_cold}"
-LOG_DIR="${EVERSPARK_LOG_DIR:-/root/everspark_logs}"
-LOG_FILE="${LOG_FILE:-$LOG_DIR/r2_pull_cold_models.log}"
 
 RCLONE_CONF_SRC="${RCLONE_CONF_SRC:-/root/rclone.conf}"
 RCLONE_CONF_DST="${RCLONE_CONF_DST:-$(core_rclone_config_path)}"
@@ -95,31 +98,19 @@ if [ "$DRY_RUN" = true ]; then
   RCLONE_DRY_RUN_ARGS+=(--dry-run)
 fi
 
-mkdir -p "$LOG_DIR"
 mkdir -p "$LOCAL_DIR"
 
-log() {
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE"
-}
-
-die() {
-  log "[ERROR] $*"
-  exit 1
-}
 
 # ===== Core rclone connection =====
 core_rclone_ensure_config "$RCLONE_CONF_SRC" "$RCLONE_CONF_DST"
-
-log "============================================================"
-log "[INFO] EverSpark Forge cold model pull started"
-log "[INFO] MODEL_BUCKET=$MODEL_BUCKET"
-log "[INFO] REMOTE_DIR=$REMOTE_DIR"
-log "[INFO] LOCAL_DIR=$LOCAL_DIR"
-log "[INFO] LOG_FILE=$LOG_FILE"
+core_info r2.status "EverSpark Forge cold model pull started"
+core_info r2.status "MODEL_BUCKET=$MODEL_BUCKET"
+core_info r2.status "REMOTE_DIR=$REMOTE_DIR"
+core_info r2.status "LOCAL_DIR=$LOCAL_DIR"
+core_info r2.status "LOG_FILE=$LOG_FILE"
 if [ "$DRY_RUN" = true ]; then
-  log "[INFO] DRY RUN MODE ENABLED"
+  core_info r2.status "DRY RUN MODE ENABLED"
 fi
-log "============================================================"
 
 trim() {
   local value="$1"
@@ -153,23 +144,23 @@ pull_one_model() {
   local_file="$LOCAL_DIR/$filename"
 
   if [ -f "$local_file" ]; then
-    log "[SKIP] already exists locally: $local_file"
+    core_info r2.progress "[SKIP] already exists locally: $local_file"
     return 0
   fi
 
   if ! rclone lsf "$remote_file" >/dev/null 2>&1; then
-    log "[WARN] remote model not found: $remote_file"
+    core_warn r2.status "remote model not found: $remote_file"
     return 0
   fi
 
-  log "[COPY] $remote_file -> $local_file"
+  core_info r2.progress "[COPY] $remote_file -> $local_file"
   core_rclone_copyto "$remote_file" "$local_file" \
     --progress \
-    --log-file "$LOG_FILE" \
+    --log-file "$RCLONE_LOG" \
     --log-level INFO \
     "${RCLONE_DRY_RUN_ARGS[@]}"
 
-  log "[OK] pulled: $filename"
+  core_ok r2.status "pulled: $filename"
 }
 
 IFS=',' read -ra MODEL_ARRAY <<< "$MODEL_NAMES"
@@ -177,8 +168,6 @@ IFS=',' read -ra MODEL_ARRAY <<< "$MODEL_NAMES"
 for name in "${MODEL_ARRAY[@]}"; do
   pull_one_model "$name"
 done
+core_ok r2.status "EverSpark Forge cold model pull completed"
+core_info r2.status "Log: $LOG_FILE"
 
-log "============================================================"
-log "[OK] EverSpark Forge cold model pull completed"
-log "[INFO] Log: $LOG_FILE"
-log "============================================================"

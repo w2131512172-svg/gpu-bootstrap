@@ -649,9 +649,10 @@ start_all.sh status
 /root/everspark_logs/recovery.log
 /root/everspark_logs/start_all.log
 /root/everspark_logs/comfyui.log
+/root/everspark_logs/tunnel.log
 /root/everspark_logs/cloudflared.log
-/root/everspark_logs/r2_pull.log
-/root/everspark_logs/r2_push.log
+/root/everspark_logs/r2.log
+/root/everspark_logs/rclone.log
 /root/everspark_logs/auto_deps.log
 /root/everspark_logs/bootstrap.log
 ```
@@ -663,7 +664,7 @@ recovery.log
   ↓
 bootstrap.log
   ↓
-r2_pull.log
+r2.log
   ↓
 auto_deps.log
   ↓
@@ -711,7 +712,8 @@ start_all.log
 看：
 
 ```text
-/root/everspark_logs/r2_pull.log
+/root/everspark_logs/r2.log
+/root/everspark_logs/rclone.log
 ```
 
 重点检查：

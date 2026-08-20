@@ -85,7 +85,9 @@ The caller migration will converge on:
   orchestrator.log
   webui.log
   tunnel.log
+  cloudflared.log
   r2.log
+  rclone.log
 ```
 
 WebUI must eventually consume a logical log manifest rather than hard-coding these paths.
@@ -113,7 +115,7 @@ The tests cover text and JSON output, level filtering, compatibility calls, reda
 
 - [x] Canonical naming and `EVERSPARK_*` configuration
 - [x] Shell/Python logging foundation and tests
-- [ ] Critical recovery path: recovery, service, bootstrap, core restore, and dependencies migrated; R2 and tunnel pending
+- [x] Critical recovery path: recovery, service, bootstrap, core restore, dependencies, R2, and tunnel
 - [ ] Long-running services: ComfyUI, Ollama Forge, Orchestrator, WebUI
 - [ ] Rotation, retention, log manifest, and status API
 

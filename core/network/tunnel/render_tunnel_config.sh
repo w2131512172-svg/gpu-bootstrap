@@ -11,14 +11,18 @@ source "${CORE_DIR}/utils/common.sh"
 # shellcheck disable=SC1091
 source "${CORE_DIR}/config/load_config.sh"
 
+LOG_DIR="${EVERSPARK_LOG_DIR:-/root/everspark_logs}"
+TUNNEL_LOG="${TUNNEL_LOG:-${LOG_DIR}/tunnel.log}"
+core_log_init tunnel.config "$TUNNEL_LOG"
+
 core_config_require CF_TUNNEL_UUID CF_HOSTNAME CF_LOCAL_PORT
 
 [[ "$CF_TUNNEL_UUID" =~ ^[A-Za-z0-9-]+$ ]] \
-  || core_die "Invalid CF_TUNNEL_UUID: $CF_TUNNEL_UUID"
+  || core_die tunnel.uuid.invalid "Invalid tunnel UUID"
 [[ "$CF_HOSTNAME" =~ ^[A-Za-z0-9.-]+$ ]] \
-  || core_die "Invalid CF_HOSTNAME: $CF_HOSTNAME"
+  || core_die tunnel.hostname.invalid "Invalid tunnel hostname" "hostname=$CF_HOSTNAME"
 [[ "$CF_LOCAL_PORT" =~ ^[0-9]+$ ]] \
-  || core_die "Invalid CF_LOCAL_PORT: $CF_LOCAL_PORT"
+  || core_die tunnel.port.invalid "Invalid tunnel local port" "port=$CF_LOCAL_PORT"
 
 CF_CONFIG_DIR="${CF_CONFIG_DIR:-${HOME}/.cloudflared}"
 CF_CONFIG_FILE="${CF_CONFIG_FILE:-${CF_CONFIG_DIR}/config.yml}"
@@ -36,7 +40,9 @@ sed \
   "$CF_TEMPLATE_FILE" > "$CF_CONFIG_FILE"
 
 if grep -q '__CF_' "$CF_CONFIG_FILE"; then
-  core_die "Tunnel config still contains unresolved placeholders: $CF_CONFIG_FILE"
+  core_die tunnel.config.unresolved "Tunnel configuration contains unresolved placeholders" \
+    "path=$CF_CONFIG_FILE"
+  exit 1
 fi
 
-core_ok "Tunnel config rendered: $CF_CONFIG_FILE"
+core_ok tunnel.config.ready "Tunnel configuration rendered" "path=$CF_CONFIG_FILE"

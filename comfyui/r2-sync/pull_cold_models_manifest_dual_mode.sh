@@ -6,6 +6,11 @@ CORE_REPO_ROOT="$(cd "${R2_SYNC_DIR}/../.." && pwd)"
 # shellcheck disable=SC1091
 source "${CORE_REPO_ROOT}/core/storage/rclone.sh"
 
+LOG_DIR="${EVERSPARK_LOG_DIR:-/root/everspark_logs}"
+LOG_FILE="${LOG_FILE:-${LOG_DIR}/r2.log}"
+RCLONE_LOG="${RCLONE_LOG:-${LOG_DIR}/rclone.log}"
+core_log_init r2.pull.cold "$LOG_FILE"
+
 DRY_RUN=false
 MODEL_TYPE=""
 MODEL_NAMES=""
@@ -123,26 +128,15 @@ done
 COMFYUI_ROOT="${COMFYUI_ROOT:-/root/ComfyUI}"
 R2_ROOT_REMOTE="${R2_ROOT_REMOTE:-r2-assets:comfyui-assets}"
 R2_COLD_REMOTE="${R2_COLD_REMOTE:-$R2_ROOT_REMOTE/models_cold}"
-LOG_DIR="${EVERSPARK_LOG_DIR:-/root/everspark_logs}"
-LOG_FILE="${LOG_FILE:-$LOG_DIR/r2_pull_cold_models.log}"
 
 RCLONE_CONF_SRC="${RCLONE_CONF_SRC:-/root/rclone.conf}"
 RCLONE_CONF_DST="${RCLONE_CONF_DST:-$(core_rclone_config_path)}"
 
-mkdir -p "$LOG_DIR"
 
-log() {
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE"
-}
-
-die() {
-  log "[ERROR] $*"
-  exit 1
-}
 
 require_jq() {
   if ! command -v jq >/dev/null 2>&1; then
-    die "jq is required for --manifest mode. Install jq or use manual mode."
+    core_die r2.failed "jq is required for --manifest mode. Install jq or use manual mode."
   fi
 }
 
@@ -152,14 +146,14 @@ load_manifest() {
   local manifest_names
 
   if [ ! -f "$manifest" ]; then
-    die "manifest file not found: $manifest"
+    core_die r2.failed "manifest file not found: $manifest"
   fi
 
   require_jq
 
   manifest_type="$(jq -r '.type // .model_type // empty' "$manifest")"
   if [ -z "$manifest_type" ]; then
-    die "manifest missing type/model_type: $manifest"
+    core_die r2.failed "manifest missing type/model_type: $manifest"
   fi
 
   MODEL_TYPE="$manifest_type"
@@ -183,7 +177,7 @@ load_manifest() {
   ' "$manifest")"
 
   if [ -z "$manifest_names" ]; then
-    die "manifest contains no model names: $manifest"
+    core_die r2.failed "manifest contains no model names: $manifest"
   fi
 
   MODEL_NAMES="$manifest_names"
@@ -191,26 +185,23 @@ load_manifest() {
 
 if [ -n "$MANIFEST_FILE" ]; then
   if [ -n "$MODEL_NAMES" ] || [ -n "$MODEL_TYPE" ]; then
-    die "--manifest mode should not be mixed with manual --type/model names"
+    core_die r2.failed "--manifest mode should not be mixed with manual --type/model names"
   fi
-
-  log "============================================================"
-  log "[INFO] EverSpark Forge cold model pull manifest mode"
-  log "[INFO] MANIFEST_FILE=$MANIFEST_FILE"
-  log "============================================================"
+  core_info r2.status "EverSpark Forge cold model pull manifest mode"
+  core_info r2.status "MANIFEST_FILE=$MANIFEST_FILE"
 
   load_manifest "$MANIFEST_FILE"
 fi
 
 MODEL_BUCKET="$(normalize_model_type "$MODEL_TYPE" || true)"
 if [ -z "${MODEL_BUCKET:-}" ]; then
-  echo "[ERROR] Missing or invalid --type. Use: lora, checkpoint, or diffusion"
+  core_error r2.arguments "Missing or invalid --type. Use: lora, checkpoint, or diffusion"
   usage
   exit 1
 fi
 
 if [ -z "$MODEL_NAMES" ]; then
-  echo "[ERROR] Missing model names. Example: xxx,yyy,zzz"
+  core_error r2.arguments "Missing model names. Example: xxx,yyy,zzz"
   usage
   exit 1
 fi
@@ -227,23 +218,20 @@ mkdir -p "$LOCAL_DIR"
 
 # ===== Core rclone connection =====
 core_rclone_ensure_config "$RCLONE_CONF_SRC" "$RCLONE_CONF_DST"
-
-log "============================================================"
-log "[INFO] EverSpark Forge cold model pull started"
+core_info r2.status "EverSpark Forge cold model pull started"
 if [ -n "$MANIFEST_FILE" ]; then
-  log "[INFO] MODE=manifest"
-  log "[INFO] MANIFEST_FILE=$MANIFEST_FILE"
+  core_info r2.status "MODE=manifest"
+  core_info r2.status "MANIFEST_FILE=$MANIFEST_FILE"
 else
-  log "[INFO] MODE=manual"
+  core_info r2.status "MODE=manual"
 fi
-log "[INFO] MODEL_BUCKET=$MODEL_BUCKET"
-log "[INFO] REMOTE_DIR=$REMOTE_DIR"
-log "[INFO] LOCAL_DIR=$LOCAL_DIR"
-log "[INFO] LOG_FILE=$LOG_FILE"
+core_info r2.status "MODEL_BUCKET=$MODEL_BUCKET"
+core_info r2.status "REMOTE_DIR=$REMOTE_DIR"
+core_info r2.status "LOCAL_DIR=$LOCAL_DIR"
+core_info r2.status "LOG_FILE=$LOG_FILE"
 if [ "$DRY_RUN" = true ]; then
-  log "[INFO] DRY RUN MODE ENABLED"
+  core_info r2.status "DRY RUN MODE ENABLED"
 fi
-log "============================================================"
 
 resolve_remote_filename_case_insensitive() {
   local requested_filename="$1"
@@ -283,43 +271,41 @@ pull_one_model() {
   local_existing_filename="$(find_local_filename_case_insensitive "$requested_filename")"
   if [ -n "$local_existing_filename" ]; then
     if [ "$local_existing_filename" != "$requested_filename" ]; then
-      log "[INFO] local case-insensitive match found: requested=$requested_filename matched=$local_existing_filename"
+      core_info r2.status "local case-insensitive match found: requested=$requested_filename matched=$local_existing_filename"
     fi
-    log "[SKIP] already exists locally: $LOCAL_DIR/$local_existing_filename"
+    core_info r2.progress "[SKIP] already exists locally: $LOCAL_DIR/$local_existing_filename"
     return 0
   fi
 
   remote_matched_filename="$(resolve_remote_filename_case_insensitive "$requested_filename")"
   if [ -z "$remote_matched_filename" ]; then
-    log "[WARN] remote model not found: $REMOTE_DIR/$requested_filename"
+    core_warn r2.status "remote model not found: $REMOTE_DIR/$requested_filename"
     return 0
   fi
 
   if [ "$remote_matched_filename" != "$requested_filename" ]; then
-    log "[INFO] remote case-insensitive match found: requested=$requested_filename matched=$remote_matched_filename"
+    core_info r2.status "remote case-insensitive match found: requested=$requested_filename matched=$remote_matched_filename"
   fi
 
   remote_file="$REMOTE_DIR/$remote_matched_filename"
   local_file="$LOCAL_DIR/$remote_matched_filename"
 
-  log "[COPY] $remote_file -> $local_file"
+  core_info r2.progress "[COPY] $remote_file -> $local_file"
   core_rclone_copyto "$remote_file" "$local_file" \
     --progress \
-    --log-file "$LOG_FILE" \
+    --log-file "$RCLONE_LOG" \
     --log-level INFO \
     "${RCLONE_DRY_RUN_ARGS[@]}"
 
-  log "[OK] pulled: $remote_matched_filename"
+  core_ok r2.status "pulled: $remote_matched_filename"
 }
 
 IFS=',' read -ra MODEL_ARRAY <<< "$MODEL_NAMES"
-log "[INFO] Requested model count: ${#MODEL_ARRAY[@]}"
+core_info r2.status "Requested model count: ${#MODEL_ARRAY[@]}"
 
 for name in "${MODEL_ARRAY[@]}"; do
   pull_one_model "$name"
 done
+core_ok r2.status "EverSpark Forge cold model pull completed"
+core_info r2.status "Log: $LOG_FILE"
 
-log "============================================================"
-log "[OK] EverSpark Forge cold model pull completed"
-log "[INFO] Log: $LOG_FILE"
-log "============================================================"

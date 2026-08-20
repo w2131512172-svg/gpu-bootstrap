@@ -6,6 +6,11 @@ CORE_REPO_ROOT="$(cd "${R2_SYNC_DIR}/../.." && pwd)"
 # shellcheck disable=SC1091
 source "${CORE_REPO_ROOT}/core/storage/rclone.sh"
 
+LOG_DIR="${EVERSPARK_LOG_DIR:-/root/everspark_logs}"
+LOG_FILE="${LOG_FILE:-${LOG_DIR}/r2.log}"
+RCLONE_LOG="${RCLONE_LOG:-${LOG_DIR}/rclone.log}"
+core_log_init r2.push "$LOG_FILE"
+
 DRY_RUN=false
 
 if [[ "${1:-}" == "--dry-run" ]]; then
@@ -39,39 +44,25 @@ COMFYUI_ROOT="${COMFYUI_ROOT:-/root/ComfyUI}"
 R2_REMOTE="${R2_REMOTE:-r2-assets:comfyui-assets/ComfyUI}"
 R2_ROOT_REMOTE="${R2_ROOT_REMOTE:-r2-assets:comfyui-assets}"
 R2_COLD_REMOTE="${R2_COLD_REMOTE:-$R2_ROOT_REMOTE/models_cold}"
-LOG_DIR="${EVERSPARK_LOG_DIR:-/root/everspark_logs}"
-LOG_FILE="${LOG_FILE:-$LOG_DIR/r2_push.log}"
 
 RCLONE_CONF_SRC="${RCLONE_CONF_SRC:-/root/rclone.conf}"
 RCLONE_CONF_DST="${RCLONE_CONF_DST:-$(core_rclone_config_path)}"
 
-mkdir -p "$LOG_DIR"
-
-log() {
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE"
-}
 
 if [ "$DRY_RUN" = true ]; then
-    log "[INFO] DRY RUN MODE ENABLED"
+    core_info r2.status "DRY RUN MODE ENABLED"
 fi
 
-die() {
-  log "[ERROR] $*"
-  exit 1
-}
 
 # ===== Core rclone connection =====
 core_rclone_ensure_config "$RCLONE_CONF_SRC" "$RCLONE_CONF_DST"
 
-[ -d "$COMFYUI_ROOT" ] || die "COMFYUI_ROOT not found: $COMFYUI_ROOT"
-
-log "============================================================"
-log "[INFO] EverSpark Forge asset push started"
-log "[INFO] COMFYUI_ROOT=$COMFYUI_ROOT"
-log "[INFO] R2_REMOTE=$R2_REMOTE"
-log "[INFO] R2_COLD_REMOTE=$R2_COLD_REMOTE"
-log "[INFO] LOG_FILE=$LOG_FILE"
-log "============================================================"
+[ -d "$COMFYUI_ROOT" ] || core_die r2.failed "COMFYUI_ROOT not found: $COMFYUI_ROOT"
+core_info r2.status "EverSpark Forge asset push started"
+core_info r2.status "COMFYUI_ROOT=$COMFYUI_ROOT"
+core_info r2.status "R2_REMOTE=$R2_REMOTE"
+core_info r2.status "R2_COLD_REMOTE=$R2_COLD_REMOTE"
+core_info r2.status "LOG_FILE=$LOG_FILE"
 
 # ============================================================
 # Stage 1: pre-push cleanup
@@ -81,12 +72,12 @@ log "============================================================"
 # ============================================================
 
 pre_push_cleanup() {
-  log "[INFO] Running pre-push cleanup"
+  core_info r2.status "Running pre-push cleanup"
 
   if [ "$DRY_RUN" = true ]; then
-    log "[DRY-RUN] Would remove: $COMFYUI_ROOT/user/__manager/cache"
-    log "[DRY-RUN] Would remove: $COMFYUI_ROOT/user/*.lock"
-    log "[DRY-RUN] Would remove recursively: $COMFYUI_ROOT/user/**/*.lock"
+    core_info r2.progress "[DRY-RUN] Would remove: $COMFYUI_ROOT/user/__manager/cache"
+    core_info r2.progress "[DRY-RUN] Would remove: $COMFYUI_ROOT/user/*.lock"
+    core_info r2.progress "[DRY-RUN] Would remove recursively: $COMFYUI_ROOT/user/**/*.lock"
     return 0
   fi
 
@@ -97,7 +88,7 @@ pre_push_cleanup() {
     find "$COMFYUI_ROOT/user" -name "*.lock" -type f -delete
   fi
 
-  log "[OK] Pre-push cleanup completed"
+  core_ok r2.status "Pre-push cleanup completed"
 }
 
 pre_push_cleanup
@@ -165,30 +156,30 @@ sync_dir() {
   local dst="$R2_REMOTE/$item"
 
   if [ ! -d "$src" ]; then
-    log "[SKIP] dir not found: $src"
+    core_info r2.progress "[SKIP] dir not found: $src"
     return 0
   fi
 
   if is_strict_dir "$item"; then
-    log "[SYNC][STRICT] $item -> $dst"
+    core_info r2.progress "[SYNC][STRICT] $item -> $dst"
     core_rclone_sync "$src" "$dst" \
       "${COMMON_EXCLUDES[@]}" \
       --transfers 8 \
       --checkers 16 \
       --fast-list \
       --progress \
-      --log-file "$LOG_FILE" \
+      --log-file "$RCLONE_LOG" \
       --log-level INFO \
       "${RCLONE_DRY_RUN_ARGS[@]}"
   else
-    log "[COPY][ADDITIVE] $item -> $dst"
+    core_info r2.progress "[COPY][ADDITIVE] $item -> $dst"
     core_rclone_copy "$src" "$dst" \
       "${COMMON_EXCLUDES[@]}" \
       --transfers 8 \
       --checkers 16 \
       --fast-list \
       --progress \
-      --log-file "$LOG_FILE" \
+      --log-file "$RCLONE_LOG" \
       --log-level INFO \
       "${RCLONE_DRY_RUN_ARGS[@]}"
   fi
@@ -200,14 +191,14 @@ copy_file() {
   local dst="$R2_REMOTE"
 
   if [ ! -f "$src" ]; then
-    log "[SKIP] file not found: $src"
+    core_info r2.progress "[SKIP] file not found: $src"
     return 0
   fi
 
-  log "[COPY][FILE] $item -> $dst/"
+  core_info r2.progress "[COPY][FILE] $item -> $dst/"
   core_rclone_copyto "$src" "$dst/$item" \
     --progress \
-    --log-file "$LOG_FILE" \
+    --log-file "$RCLONE_LOG" \
     --log-level INFO \
     "${RCLONE_DRY_RUN_ARGS[@]}"
 }
@@ -232,7 +223,7 @@ copy_model_file() {
 
   core_rclone_copyto "$src_file" "$dst_file" \
     --progress \
-    --log-file "$LOG_FILE" \
+    --log-file "$RCLONE_LOG" \
     --log-level INFO \
     "${RCLONE_DRY_RUN_ARGS[@]}"
 }
@@ -246,7 +237,7 @@ sync_model_bucket() {
   local cold_list
 
   if [ ! -d "$local_dir" ]; then
-    log "[SKIP] model dir not found: $local_dir"
+    core_info r2.progress "[SKIP] model dir not found: $local_dir"
     return 0
   fi
 
@@ -254,30 +245,30 @@ sync_model_bucket() {
   cold_list="$(mktemp)"
   trap 'rm -f "$default_list" "$cold_list"' RETURN
 
-  log "[INFO] Scanning remote default model layer: $default_remote_dir"
+  core_info r2.status "Scanning remote default model layer: $default_remote_dir"
   list_remote_files "$default_remote_dir" "$default_list"
 
-  log "[INFO] Scanning remote cold model layer: $cold_remote_dir"
+  core_info r2.status "Scanning remote cold model layer: $cold_remote_dir"
   list_remote_files "$cold_remote_dir" "$cold_list"
 
-  log "[INFO] Classifying local models: $local_dir"
+  core_info r2.status "Classifying local models: $local_dir"
 
   while IFS= read -r -d '' src_file; do
     local filename
     filename="$(basename "$src_file")"
 
     if remote_file_exists_in_list "$cold_list" "$filename"; then
-      log "[SKIP][COLD] $bucket/$filename already exists in cold layer; do not upload to default layer"
+      core_info r2.progress "[SKIP][COLD] $bucket/$filename already exists in cold layer; do not upload to default layer"
       continue
     fi
 
     if remote_file_exists_in_list "$default_list" "$filename"; then
-      log "[COPY][MODEL][DEFAULT] $bucket/$filename -> $default_remote_dir/"
+      core_info r2.progress "[COPY][MODEL][DEFAULT] $bucket/$filename -> $default_remote_dir/"
       copy_model_file "$src_file" "$default_remote_dir/$filename"
       continue
     fi
 
-    log "[COPY][MODEL][NEW_TO_COLD] $bucket/$filename -> $cold_remote_dir/"
+    core_info r2.progress "[COPY][MODEL][NEW_TO_COLD] $bucket/$filename -> $cold_remote_dir/"
     copy_model_file "$src_file" "$cold_remote_dir/$filename"
   done < <(find "$local_dir" -maxdepth 1 -type f -print0)
 
@@ -290,11 +281,11 @@ sync_models_misc() {
   local dst="$R2_REMOTE/models"
 
   if [ ! -d "$src" ]; then
-    log "[SKIP] dir not found: $src"
+    core_info r2.progress "[SKIP] dir not found: $src"
     return 0
   fi
 
-  log "[COPY][ADDITIVE] models misc -> $dst/ excluding loras/checkpoints"
+  core_info r2.progress "[COPY][ADDITIVE] models misc -> $dst/ excluding loras/checkpoints"
   core_rclone_copy "$src" "$dst" \
     "${COMMON_EXCLUDES[@]}" \
     "${MODEL_MISC_EXCLUDES[@]}" \
@@ -302,7 +293,7 @@ sync_models_misc() {
     --checkers 16 \
     --fast-list \
     --progress \
-    --log-file "$LOG_FILE" \
+    --log-file "$RCLONE_LOG" \
     --log-level INFO \
     "${RCLONE_DRY_RUN_ARGS[@]}"
 }
@@ -318,8 +309,6 @@ sync_model_bucket "checkpoints"
 for item in "${SYNC_FILES[@]}"; do
   copy_file "$item"
 done
+core_ok r2.status "EverSpark Forge asset push completed"
+core_info r2.status "Log: $LOG_FILE"
 
-log "============================================================"
-log "[OK] EverSpark Forge asset push completed"
-log "[INFO] Log: $LOG_FILE"
-log "============================================================"
