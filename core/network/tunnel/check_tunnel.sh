@@ -22,7 +22,7 @@ CF_CONFIG_DIR="${CF_CONFIG_DIR:-${HOME}/.cloudflared}"
 CF_CONFIG_FILE="${CF_CONFIG_FILE:-${CF_CONFIG_DIR}/config.yml}"
 CF_CREDENTIAL_FILE="${CF_CREDENTIAL_FILE:-${CF_CONFIG_DIR}/${CF_TUNNEL_UUID}.json}"
 
-LOG_DIR="${AI_FORGE_LOG_DIR:-/root/ai_forge_logs}"
+LOG_DIR="${EVERSPARK_LOG_DIR:-/root/everspark_logs}"
 CLOUDFLARED_LOG="${CLOUDFLARED_LOG:-${LOG_DIR}/cloudflared.log}"
 CORE_LOG_FILE="${TUNNEL_CHECK_LOG:-${LOG_DIR}/tunnel_check.log}"
 export CORE_LOG_FILE

@@ -11,7 +11,7 @@ source "${REPO_ROOT}/core/config/load_config.sh"
 # shellcheck disable=SC1091
 source "${REPO_ROOT}/core/storage/rclone.sh"
 
-LOG_DIR="${AI_FORGE_LOG_DIR:-/root/ai_forge_logs}"
+LOG_DIR="${EVERSPARK_LOG_DIR:-/root/everspark_logs}"
 FORGE_LOG="${FORGE_LOG:-${LOG_DIR}/forge_start.log}"
 
 TORCH_PROFILE="${TORCH_PROFILE:-auto}"
@@ -185,7 +185,7 @@ activate_project_env() {
 }
 
 log "============================================================"
-log "AI Forge full recovery started"
+log "EverSpark Forge full recovery started"
 log "SCRIPT_DIR=$SCRIPT_DIR"
 log "LOG_DIR=$LOG_DIR"
 log "FORGE_LOG=$FORGE_LOG"
@@ -247,6 +247,6 @@ run_step \
   bash "$SCRIPT_DIR/start_all.sh" start
 
 log "============================================================"
-log "[SUCCESS] AI Forge full recovery completed 🚀"
+log "[SUCCESS] EverSpark Forge full recovery completed 🚀"
 log "[INFO] EverSpark Forge CLI available: everspark help"
 log "============================================================"

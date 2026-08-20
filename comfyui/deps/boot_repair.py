@@ -19,7 +19,7 @@ COMFYUI_DIR = SCRIPT_DIR.parent
 START_ALL = COMFYUI_DIR / "start_all.sh"
 AUTO_DEPS = SCRIPT_DIR / "auto_deps.py"
 
-LOG_DIR = Path(os.environ.get("AI_FORGE_LOG_DIR", "/root/ai_forge_logs"))
+LOG_DIR = Path(os.environ.get("EVERSPARK_LOG_DIR", "/root/everspark_logs"))
 SERVICE_LOG = Path(os.environ.get("SERVICE_LOG", str(LOG_DIR / "comfyui.log")))
 BOOT_REPAIR_LOG = LOG_DIR / "boot_repair.log"
 
@@ -98,7 +98,7 @@ def run_cmd(cmd: list[str], *, check: bool = True) -> int:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="EverForge ComfyUI first-boot ModuleNotFoundError repair pass"
+        description="EverSpark Forge ComfyUI first-boot ModuleNotFoundError repair pass"
     )
     parser.add_argument("--log", type=str, default=str(SERVICE_LOG))
     parser.add_argument("--marker", type=str, default=DEFAULT_READY_MARKER)

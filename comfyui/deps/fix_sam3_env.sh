@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-COMFYUI_ROOT="${AI_FORGE_COMFYUI_ROOT:-/root/ComfyUI}"
+COMFYUI_ROOT="${EVERSPARK_COMFYUI_ROOT:-/root/ComfyUI}"
 COMFY_ENV_WORKSPACE="${COMFY_ENV_WORKSPACE:-/root/.ce}"
 SAM3_DIR="${SAM3_DIR:-${COMFYUI_ROOT}/custom_nodes/comfyui-sam3}"
 SAM3_FALLBACK_CUDA="${SAM3_FALLBACK_CUDA:-12.4}"

@@ -646,14 +646,14 @@ start_all.sh status
 常见日志：
 
 ```text
-/root/ai_forge_logs/forge_start.log
-/root/ai_forge_logs/start_all.log
-/root/ai_forge_logs/comfyui.log
-/root/ai_forge_logs/cloudflared.log
-/root/ai_forge_logs/r2_pull.log
-/root/ai_forge_logs/r2_push.log
-/root/ai_forge_logs/auto_deps.log
-/root/ai_forge_bootstrap.log
+/root/everspark_logs/forge_start.log
+/root/everspark_logs/start_all.log
+/root/everspark_logs/comfyui.log
+/root/everspark_logs/cloudflared.log
+/root/everspark_logs/r2_pull.log
+/root/everspark_logs/r2_push.log
+/root/everspark_logs/auto_deps.log
+/root/everspark_bootstrap.log
 ```
 
 排查顺序建议：
@@ -661,7 +661,7 @@ start_all.sh status
 ```text
 forge_start.log
   ↓
-ai_forge_bootstrap.log
+everspark_bootstrap.log
   ↓
 r2_pull.log
   ↓
@@ -683,7 +683,7 @@ start_all.log
 先看：
 
 ```text
-/root/ai_forge_logs/forge_start.log
+/root/everspark_logs/forge_start.log
 ```
 
 因为它记录每个阶段是否通过。
@@ -693,7 +693,7 @@ start_all.log
 看：
 
 ```text
-/root/ai_forge_bootstrap.log
+/root/everspark_bootstrap.log
 /root/bootstrap_env_info.txt
 ```
 
@@ -711,7 +711,7 @@ start_all.log
 看：
 
 ```text
-/root/ai_forge_logs/r2_pull.log
+/root/everspark_logs/r2_pull.log
 ```
 
 重点检查：
@@ -726,7 +726,7 @@ start_all.log
 看：
 
 ```text
-/root/ai_forge_logs/auto_deps.log
+/root/everspark_logs/auto_deps.log
 /root/ComfyUI/user/comfyui.log
 ```
 
@@ -753,7 +753,7 @@ curl -I http://127.0.0.1:8188
 如果本地正常，再看：
 
 ```text
-/root/ai_forge_logs/cloudflared.log
+/root/everspark_logs/cloudflared.log
 ```
 
 重点检查：
@@ -834,7 +834,7 @@ service 层
 network 层
 ```
 
-AI Forge Core 再负责跨 Forge 编排。
+EverSpark Forge Core 再负责跨 Forge 编排。
 
 ---
 

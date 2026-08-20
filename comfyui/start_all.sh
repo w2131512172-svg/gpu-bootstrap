@@ -28,7 +28,7 @@ COMFY_START_TIMEOUT="${COMFY_START_TIMEOUT:-300}"
 COMFY_START_GRACE="${COMFY_START_GRACE:-8}"
 
 COMFY_DIR="${COMFY_DIR:-/root/ComfyUI}"
-LOG_DIR="${AI_FORGE_LOG_DIR:-/root/ai_forge_logs}"
+LOG_DIR="${EVERSPARK_LOG_DIR:-/root/everspark_logs}"
 SERVICE_LOG="${SERVICE_LOG:-${LOG_DIR}/comfyui.log}"
 START_LOG="${START_LOG:-${LOG_DIR}/start_all.log}"
 BOOT_REPAIR_LOG="${BOOT_REPAIR_LOG:-${LOG_DIR}/boot_repair.nohup.log}"
@@ -178,9 +178,9 @@ start_comfy() {
   activate_project_env
   core_gpu_assign_forge comfy
 
-  if lsof -i :"${CF_LOCAL_PORT}" >/tmp/ai_forge_port.log 2>&1; then
+  if lsof -i :"${CF_LOCAL_PORT}" >/tmp/everspark_comfyui_port.log 2>&1; then
     log "[WARN] port ${CF_LOCAL_PORT} occupied:"
-    cat /tmp/ai_forge_port.log | tee -a "$START_LOG"
+    cat /tmp/everspark_comfyui_port.log | tee -a "$START_LOG"
 
     if ! pgrep -f "main.py.*--port ${CF_LOCAL_PORT}" >/dev/null 2>&1; then
       log "[INFO] killing non-ComfyUI process on port ${CF_LOCAL_PORT}..."
@@ -276,7 +276,7 @@ status_all() {
 }
 
 start_all() {
-  log "== [AI Forge] start all =="
+  log "== [EverSpark Forge] start all =="
   log "[INFO] hostname: ${CF_HOSTNAME}"
   log "[INFO] port: ${CF_LOCAL_PORT}"
   log "[INFO] ComfyUI log: ${SERVICE_LOG}"
@@ -288,7 +288,7 @@ start_all() {
   status_all
 
   log "========================================"
-  log "[SUCCESS] AI Forge is ONLINE 🚀"
+  log "[SUCCESS] EverSpark Forge is ONLINE 🚀"
   log "👉 https://${CF_HOSTNAME}"
   log "========================================"
 }

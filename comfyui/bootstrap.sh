@@ -18,7 +18,7 @@ source "${REPO_ROOT}/core/hardware/gpu.sh"
 source "${REPO_ROOT}/core/network/cloudflared.sh"
 
 # ============================================================
-# AI Forge - Bootstrap V2
+# EverSpark Forge - Bootstrap V2
 # Responsibility:
 #   Environment layer ONLY.
 #
@@ -42,7 +42,7 @@ TORCHAUDIO_VERSION="${TORCHAUDIO_VERSION:-2.5.1+cu121}"
 XFORMERS_VERSION="${XFORMERS_VERSION:-0.0.27.post2}"
 TOMLI_VERSION="${TOMLI_VERSION:-2.0.1}"
 
-BOOTSTRAP_LOG="${BOOTSTRAP_LOG:-/root/ai_forge_bootstrap.log}"
+BOOTSTRAP_LOG="${BOOTSTRAP_LOG:-/root/everspark_bootstrap.log}"
 BOOTSTRAP_ENV_INFO="${BOOTSTRAP_ENV_INFO:-/root/bootstrap_env_info.txt}"
 
 export DEBIAN_FRONTEND=noninteractive
@@ -239,7 +239,7 @@ write_env_info() {
   cuda_driver="$(nvidia-smi 2>/dev/null | sed -n 's/.*CUDA Version: \([0-9.]*\).*/\1/p' | head -n 1 || true)"
 
   cat > "$BOOTSTRAP_ENV_INFO" <<EOF
-AI_FORGE_BOOTSTRAP_ENV_INFO
+EVERSPARK_BOOTSTRAP_ENV_INFO
 CREATED_AT=$(date '+%Y-%m-%d %H:%M:%S')
 
 ENV_NAME=${ENV_NAME}
@@ -273,7 +273,7 @@ setup_shell_env() {
 main() {
   : > "$BOOTSTRAP_LOG"
 
-  section "AI Forge Bootstrap V2 started"
+  section "EverSpark Forge Bootstrap V2 started"
 
   preflight_check
   install_apt_packages
@@ -285,7 +285,7 @@ main() {
   write_env_info
   setup_shell_env
 
-  section "AI Forge Bootstrap V2 completed"
+  section "EverSpark Forge Bootstrap V2 completed"
   log "[OK] DONE."
 }
 

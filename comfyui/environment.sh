@@ -21,14 +21,14 @@ load_environment_config() {
 
 remove_legacy_auto_activate() {
   local bashrc="${HOME}/.bashrc"
-  local marker="# Auto-activate AI Forge project env"
+  local marker="# Auto-activate EverSpark Forge project env"
 
   if [ ! -f "$bashrc" ] || ! grep -qF "$marker" "$bashrc"; then
     core_ok "ComfyUI shell auto-activation is disabled."
     return 0
   fi
 
-  sed -i '/^# Auto-activate AI Forge project env$/,/^fi$/d' "$bashrc"
+  sed -i '/^# Auto-activate EverSpark Forge project env$/,/^fi$/d' "$bashrc"
   core_ok "Removed legacy ComfyUI auto-activation from: $bashrc"
 }
 

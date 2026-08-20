@@ -19,7 +19,7 @@ if [ "$DRY_RUN" = true ]; then
 fi
 
 # ============================================================
-# AI Forge - R2 Push Incremental
+# EverSpark Forge - R2 Push Incremental
 # Purpose:
 #   Push ONLY ComfyUI asset/state layers to Cloudflare R2.
 #   Do NOT push rebuildable ComfyUI core source.
@@ -39,7 +39,7 @@ COMFYUI_ROOT="${COMFYUI_ROOT:-/root/ComfyUI}"
 R2_REMOTE="${R2_REMOTE:-r2-assets:comfyui-assets/ComfyUI}"
 R2_ROOT_REMOTE="${R2_ROOT_REMOTE:-r2-assets:comfyui-assets}"
 R2_COLD_REMOTE="${R2_COLD_REMOTE:-$R2_ROOT_REMOTE/models_cold}"
-LOG_DIR="${AI_FORGE_LOG_DIR:-/root/ai_forge_logs}"
+LOG_DIR="${EVERSPARK_LOG_DIR:-/root/everspark_logs}"
 LOG_FILE="${LOG_FILE:-$LOG_DIR/r2_push.log}"
 
 RCLONE_CONF_SRC="${RCLONE_CONF_SRC:-/root/rclone.conf}"
@@ -66,7 +66,7 @@ core_rclone_ensure_config "$RCLONE_CONF_SRC" "$RCLONE_CONF_DST"
 [ -d "$COMFYUI_ROOT" ] || die "COMFYUI_ROOT not found: $COMFYUI_ROOT"
 
 log "============================================================"
-log "[INFO] AI Forge asset push started"
+log "[INFO] EverSpark Forge asset push started"
 log "[INFO] COMFYUI_ROOT=$COMFYUI_ROOT"
 log "[INFO] R2_REMOTE=$R2_REMOTE"
 log "[INFO] R2_COLD_REMOTE=$R2_COLD_REMOTE"
@@ -320,6 +320,6 @@ for item in "${SYNC_FILES[@]}"; do
 done
 
 log "============================================================"
-log "[OK] AI Forge asset push completed"
+log "[OK] EverSpark Forge asset push completed"
 log "[INFO] Log: $LOG_FILE"
 log "============================================================"

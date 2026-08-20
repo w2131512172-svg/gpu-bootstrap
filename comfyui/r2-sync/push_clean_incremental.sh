@@ -15,7 +15,7 @@ PUSH_SCRIPT="$SCRIPT_DIR/push_incremental.sh"
 [ -f "$PUSH_SCRIPT" ] || { echo "[ERROR] push script not found: $PUSH_SCRIPT"; exit 1; }
 
 echo "============================================================"
-echo "[INFO] EverForge clean incremental push started"
+echo "[INFO] EverSpark Forge clean incremental push started"
 echo "[INFO] SCRIPT_DIR=$SCRIPT_DIR"
 if [ "$DRY_RUN" = true ]; then
   echo "[INFO] DRY RUN MODE ENABLED"
@@ -37,5 +37,5 @@ else
 fi
 
 echo "============================================================"
-echo "[OK] EverForge clean incremental push completed"
+echo "[OK] EverSpark Forge clean incremental push completed"
 echo "============================================================"

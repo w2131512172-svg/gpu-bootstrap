@@ -9,7 +9,7 @@ if [[ "${1:-}" == "--dry-run" ]]; then
 fi
 
 COMFYUI_ROOT="${COMFYUI_ROOT:-/root/ComfyUI}"
-LOG_DIR="${AI_FORGE_LOG_DIR:-/root/ai_forge_logs}"
+LOG_DIR="${EVERSPARK_LOG_DIR:-/root/everspark_logs}"
 LOG_FILE="${LOG_FILE:-$LOG_DIR/r2_push.log}"
 JUNK_RULES_FILE="${JUNK_RULES_FILE:-$SCRIPT_DIR/junk_rules.sh}"
 
@@ -92,7 +92,7 @@ clean_files_by_glob() {
 }
 
 log "============================================================"
-log "[INFO] EverForge local junk cleanup started"
+log "[INFO] EverSpark Forge local junk cleanup started"
 log "[INFO] COMFYUI_ROOT=$COMFYUI_ROOT"
 log "[INFO] JUNK_RULES_FILE=$JUNK_RULES_FILE"
 if [ "$DRY_RUN" = true ]; then
@@ -104,4 +104,4 @@ clean_known_paths
 clean_dirs_by_name
 clean_files_by_glob
 
-log "[OK] EverForge local junk cleanup completed"
+log "[OK] EverSpark Forge local junk cleanup completed"

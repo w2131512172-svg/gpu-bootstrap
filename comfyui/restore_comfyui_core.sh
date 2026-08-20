@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # ============================================================
-# AI Forge - Restore ComfyUI Core
+# EverSpark Forge - Restore ComfyUI Core
 # Responsibility:
 #   Restore rebuildable ComfyUI core source only.
 #
@@ -17,7 +17,7 @@ COMFYUI_ROOT="${COMFYUI_ROOT:-/root/ComfyUI}"
 COMFYUI_REPO="${COMFYUI_REPO:-https://github.com/Comfy-Org/ComfyUI.git}"
 COMFYUI_VERSION="${COMFYUI_VERSION:-v0.20.1}"
 
-LOG_DIR="${AI_FORGE_LOG_DIR:-/root/ai_forge_logs}"
+LOG_DIR="${EVERSPARK_LOG_DIR:-/root/everspark_logs}"
 LOG_FILE="${COMFYUI_CORE_LOG:-$LOG_DIR/comfyui_core_restore.log}"
 CORE_INFO_FILE="${COMFYUI_CORE_INFO_FILE:-/root/comfyui_core_info.txt}"
 
@@ -38,7 +38,7 @@ section() {
   log "============================================================"
 }
 
-section "AI Forge ComfyUI core restore started"
+section "EverSpark Forge ComfyUI core restore started"
 log "COMFYUI_ROOT=$COMFYUI_ROOT"
 log "COMFYUI_REPO=$COMFYUI_REPO"
 log "COMFYUI_VERSION=$COMFYUI_VERSION"
@@ -69,7 +69,7 @@ CURRENT_COMMIT="$(git rev-parse HEAD)"
 CURRENT_REF="$(git describe --tags --always 2>/dev/null || git rev-parse --short HEAD)"
 
 cat > "$CORE_INFO_FILE" <<EOF
-AI_FORGE_COMFYUI_CORE_INFO
+EVERSPARK_COMFYUI_CORE_INFO
 CREATED_AT=$(date '+%Y-%m-%d %H:%M:%S')
 
 COMFYUI_ROOT=$COMFYUI_ROOT
@@ -83,4 +83,4 @@ log "[OK] ComfyUI core ready"
 log "[INFO] current ref: $CURRENT_REF"
 log "[INFO] current commit: $CURRENT_COMMIT"
 log "[OK] core info written: $CORE_INFO_FILE"
-section "AI Forge ComfyUI core restore completed"
+section "EverSpark Forge ComfyUI core restore completed"

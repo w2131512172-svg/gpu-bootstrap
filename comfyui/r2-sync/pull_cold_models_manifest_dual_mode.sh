@@ -123,7 +123,7 @@ done
 COMFYUI_ROOT="${COMFYUI_ROOT:-/root/ComfyUI}"
 R2_ROOT_REMOTE="${R2_ROOT_REMOTE:-r2-assets:comfyui-assets}"
 R2_COLD_REMOTE="${R2_COLD_REMOTE:-$R2_ROOT_REMOTE/models_cold}"
-LOG_DIR="${AI_FORGE_LOG_DIR:-/root/ai_forge_logs}"
+LOG_DIR="${EVERSPARK_LOG_DIR:-/root/everspark_logs}"
 LOG_FILE="${LOG_FILE:-$LOG_DIR/r2_pull_cold_models.log}"
 
 RCLONE_CONF_SRC="${RCLONE_CONF_SRC:-/root/rclone.conf}"
@@ -195,7 +195,7 @@ if [ -n "$MANIFEST_FILE" ]; then
   fi
 
   log "============================================================"
-  log "[INFO] AI Forge cold model pull manifest mode"
+  log "[INFO] EverSpark Forge cold model pull manifest mode"
   log "[INFO] MANIFEST_FILE=$MANIFEST_FILE"
   log "============================================================"
 
@@ -229,7 +229,7 @@ mkdir -p "$LOCAL_DIR"
 core_rclone_ensure_config "$RCLONE_CONF_SRC" "$RCLONE_CONF_DST"
 
 log "============================================================"
-log "[INFO] AI Forge cold model pull started"
+log "[INFO] EverSpark Forge cold model pull started"
 if [ -n "$MANIFEST_FILE" ]; then
   log "[INFO] MODE=manifest"
   log "[INFO] MANIFEST_FILE=$MANIFEST_FILE"
@@ -320,6 +320,6 @@ for name in "${MODEL_ARRAY[@]}"; do
 done
 
 log "============================================================"
-log "[OK] AI Forge cold model pull completed"
+log "[OK] EverSpark Forge cold model pull completed"
 log "[INFO] Log: $LOG_FILE"
 log "============================================================"

@@ -18,7 +18,7 @@ source "${REPO_ROOT}/core/hardware/gpu.sh"
 source "${REPO_ROOT}/core/network/cloudflared.sh"
 
 # ============================================================
-# AI Forge - Bootstrap V2 cu128 profile
+# EverSpark Forge - Bootstrap V2 cu128 profile
 # Responsibility:
 #   Environment layer ONLY.
 #
@@ -47,7 +47,7 @@ INSTALL_XFORMERS="${INSTALL_XFORMERS:-0}"
 XFORMERS_VERSION="${XFORMERS_VERSION:-}"
 TOMLI_VERSION="${TOMLI_VERSION:-2.0.1}"
 
-BOOTSTRAP_LOG="${BOOTSTRAP_LOG:-/root/ai_forge_bootstrap.log}"
+BOOTSTRAP_LOG="${BOOTSTRAP_LOG:-/root/everspark_bootstrap.log}"
 BOOTSTRAP_ENV_INFO="${BOOTSTRAP_ENV_INFO:-/root/bootstrap_env_info.txt}"
 
 export DEBIAN_FRONTEND=noninteractive
@@ -270,7 +270,7 @@ PY
 )"
 
   cat > "$BOOTSTRAP_ENV_INFO" <<EOF
-AI_FORGE_BOOTSTRAP_ENV_INFO
+EVERSPARK_BOOTSTRAP_ENV_INFO
 CREATED_AT=$(date '+%Y-%m-%d %H:%M:%S')
 
 TORCH_PROFILE=cu128
@@ -307,7 +307,7 @@ setup_shell_env() {
 main() {
   : > "$BOOTSTRAP_LOG"
 
-  section "AI Forge Bootstrap V2 cu128 started"
+  section "EverSpark Forge Bootstrap V2 cu128 started"
 
   preflight_check
   install_apt_packages
@@ -319,7 +319,7 @@ main() {
   write_env_info
   setup_shell_env
 
-  section "AI Forge Bootstrap V2 cu128 completed"
+  section "EverSpark Forge Bootstrap V2 cu128 completed"
   log "[OK] DONE."
 }
 

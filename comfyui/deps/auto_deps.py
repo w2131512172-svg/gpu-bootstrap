@@ -20,7 +20,7 @@ from installer.runner import install_all, install_comfyui_requirements
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-COMFYUI_ROOT = Path(os.environ.get("AI_FORGE_COMFYUI_ROOT", "/root/ComfyUI")).resolve()
+COMFYUI_ROOT = Path(os.environ.get("EVERSPARK_COMFYUI_ROOT", "/root/ComfyUI")).resolve()
 CUSTOM_NODES = COMFYUI_ROOT / "custom_nodes"
 
 OUT_CLEAN = SCRIPT_DIR / "custom_nodes.clean.txt"
@@ -28,7 +28,7 @@ OUT_SKIPPED = SCRIPT_DIR / "custom_nodes.skipped.txt"
 MANUAL_REQUIREMENTS = SCRIPT_DIR / "manual_requirements.txt"
 COMPAT_REQUIREMENTS = SCRIPT_DIR / "compat_requirements.txt"
 
-LOG_DIR = Path("/root/ai_forge_logs")
+LOG_DIR = Path("/root/everspark_logs")
 LOG_FILE = LOG_DIR / "auto_deps.log"
 
 
@@ -142,7 +142,7 @@ def build_install_plan(clean: list[str]) -> tuple[list[str], list[str]]:
 
 def print_repair_summary(modules: list[str], packages: list[str], *, installed: bool) -> None:
     print("=" * 60)
-    print("[auto_deps] EverForge repair-log summary")
+    print("[auto_deps] EverSpark Forge repair-log summary")
     print("[auto_deps] missing modules:", len(modules))
 
     if modules:
@@ -170,7 +170,7 @@ def print_repair_summary(modules: list[str], packages: list[str], *, installed: 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="AI Forge ComfyUI dependency orchestrator"
+        description="EverSpark Forge ComfyUI dependency orchestrator"
     )
     parser.add_argument(
         "--rescan",

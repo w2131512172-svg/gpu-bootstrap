@@ -81,7 +81,7 @@ fi
 COMFYUI_ROOT="${COMFYUI_ROOT:-/root/ComfyUI}"
 R2_ROOT_REMOTE="${R2_ROOT_REMOTE:-r2-assets:comfyui-assets}"
 R2_COLD_REMOTE="${R2_COLD_REMOTE:-$R2_ROOT_REMOTE/models_cold}"
-LOG_DIR="${AI_FORGE_LOG_DIR:-/root/ai_forge_logs}"
+LOG_DIR="${EVERSPARK_LOG_DIR:-/root/everspark_logs}"
 LOG_FILE="${LOG_FILE:-$LOG_DIR/r2_pull_cold_models.log}"
 
 RCLONE_CONF_SRC="${RCLONE_CONF_SRC:-/root/rclone.conf}"
@@ -111,7 +111,7 @@ die() {
 core_rclone_ensure_config "$RCLONE_CONF_SRC" "$RCLONE_CONF_DST"
 
 log "============================================================"
-log "[INFO] AI Forge cold model pull started"
+log "[INFO] EverSpark Forge cold model pull started"
 log "[INFO] MODEL_BUCKET=$MODEL_BUCKET"
 log "[INFO] REMOTE_DIR=$REMOTE_DIR"
 log "[INFO] LOCAL_DIR=$LOCAL_DIR"
@@ -179,6 +179,6 @@ for name in "${MODEL_ARRAY[@]}"; do
 done
 
 log "============================================================"
-log "[OK] AI Forge cold model pull completed"
+log "[OK] EverSpark Forge cold model pull completed"
 log "[INFO] Log: $LOG_FILE"
 log "============================================================"

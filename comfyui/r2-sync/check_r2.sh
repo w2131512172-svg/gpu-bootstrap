@@ -6,7 +6,7 @@ CORE_REPO_ROOT="$(cd "${R2_SYNC_DIR}/../.." && pwd)"
 # shellcheck disable=SC1091
 source "${CORE_REPO_ROOT}/core/storage/rclone.sh"
 
-LOG_DIR="${AI_FORGE_LOG_DIR:-/root/ai_forge_logs}"
+LOG_DIR="${EVERSPARK_LOG_DIR:-/root/everspark_logs}"
 LOG_FILE="$LOG_DIR/r2_check.log"
 
 COMFYUI_ROOT="${COMFYUI_ROOT:-/root/ComfyUI}"
@@ -40,7 +40,7 @@ fail() {
 
 CHECK_FAILED=0
 
-log "AI Forge R2 data layer self-check started"
+log "EverSpark Forge R2 data layer self-check started"
 log "COMFYUI_ROOT=$COMFYUI_ROOT"
 log "R2_REMOTE=$R2_REMOTE"
 log "LOG_FILE=$LOG_FILE"

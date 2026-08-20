@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -u
 
-LOG_DIR="/root/ai_forge_logs"
+LOG_DIR="/root/everspark_logs"
 LOG_FILE="$LOG_DIR/deps_check.log"
 AUTO_DEPS_LOG="$LOG_DIR/auto_deps.log"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-COMFYUI_ROOT="${AI_FORGE_COMFYUI_ROOT:-/root/ComfyUI}"
+COMFYUI_ROOT="${EVERSPARK_COMFYUI_ROOT:-/root/ComfyUI}"
 CUSTOM_NODES_DIR="$COMFYUI_ROOT/custom_nodes"
 
 AUTO_DEPS_PY="$SCRIPT_DIR/auto_deps.py"
@@ -74,7 +74,7 @@ check_optional_file_readable() {
 
 CHECK_FAILED=0
 
-log "AI Forge dependency layer self-check started"
+log "EverSpark Forge dependency layer self-check started"
 log "script dir: $SCRIPT_DIR"
 log "ComfyUI root: $COMFYUI_ROOT"
 log "log file: $LOG_FILE"

@@ -7,7 +7,7 @@ CORE_REPO_ROOT="$(cd "${R2_SYNC_DIR}/../.." && pwd)"
 source "${CORE_REPO_ROOT}/core/storage/rclone.sh"
 
 # ============================================================
-# AI Forge - R2 Pull Assets
+# EverSpark Forge - R2 Pull Assets
 # Purpose:
 #   Pull ONLY ComfyUI asset/state layers from Cloudflare R2.
 #   Requires ComfyUI core source to already exist locally.
@@ -26,7 +26,7 @@ fi
 
 COMFYUI_ROOT="${COMFYUI_ROOT:-/root/ComfyUI}"
 R2_REMOTE="${R2_REMOTE:-r2-assets:comfyui-assets/ComfyUI}"
-LOG_DIR="${AI_FORGE_LOG_DIR:-/root/ai_forge_logs}"
+LOG_DIR="${EVERSPARK_LOG_DIR:-/root/everspark_logs}"
 LOG_FILE="${LOG_FILE:-$LOG_DIR/r2_pull.log}"
 
 RCLONE_CONF_SRC="${RCLONE_CONF_SRC:-/root/rclone.conf}"
@@ -55,7 +55,7 @@ core_rclone_ensure_config "$RCLONE_CONF_SRC" "$RCLONE_CONF_DST"
 [ -f "$COMFYUI_ROOT/main.py" ] || die "ComfyUI core not found: $COMFYUI_ROOT/main.py missing. Please git clone ComfyUI first."
 
 log "============================================================"
-log "[INFO] AI Forge asset pull started"
+log "[INFO] EverSpark Forge asset pull started"
 log "[INFO] COMFYUI_ROOT=$COMFYUI_ROOT"
 log "[INFO] R2_REMOTE=$R2_REMOTE"
 log "[INFO] LOG_FILE=$LOG_FILE"
@@ -131,6 +131,6 @@ for item in "${SYNC_FILES[@]}"; do
 done
 
 log "============================================================"
-log "[OK] AI Forge asset pull completed"
+log "[OK] EverSpark Forge asset pull completed"
 log "[INFO] Log: $LOG_FILE"
 log "============================================================"

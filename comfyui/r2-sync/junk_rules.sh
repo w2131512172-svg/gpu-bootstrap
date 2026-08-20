@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================
-# EverForge / AI Forge - Junk Rules V1
+# EverSpark Forge - Junk Rules V1
 #
 # Single source of truth for disposable ComfyUI files.
 #
