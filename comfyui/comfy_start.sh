@@ -48,6 +48,24 @@ run_step() {
   fi
 }
 
+run_optional_step() {
+  local name="$1"
+  shift
+
+  log "============================================================"
+  log "[OPTIONAL] $name"
+  log "[RUN     ] $*"
+  log "============================================================"
+
+  if "$@"; then
+    log "[OK] optional step completed: $name"
+  else
+    local exit_code=$?
+    core_warn "optional step failed (exit=$exit_code): $name"
+    core_warn "continuing recovery because this component is not required for the ComfyUI Forge core"
+  fi
+}
+
 prepare_private_configs() {
   log "============================================================"
   log "[STEP] prepare private config files"
@@ -220,7 +238,7 @@ run_step \
   "dependency install" \
   python "$SCRIPT_DIR/deps/auto_deps.py"
 
-run_step \
+run_optional_step \
   "comfyui-sam3 isolation env repair" \
   bash "$SCRIPT_DIR/deps/fix_sam3_env.sh"
 
