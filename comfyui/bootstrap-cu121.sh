@@ -41,6 +41,7 @@ TORCHVISION_VERSION="${TORCHVISION_VERSION:-0.20.1+cu121}"
 TORCHAUDIO_VERSION="${TORCHAUDIO_VERSION:-2.5.1+cu121}"
 XFORMERS_VERSION="${XFORMERS_VERSION:-0.0.27.post2}"
 TOMLI_VERSION="${TOMLI_VERSION:-2.0.1}"
+COMFY_KITCHEN_VERSION="${COMFY_KITCHEN_VERSION:-0.2.10}"
 
 BOOTSTRAP_LOG="${BOOTSTRAP_LOG:-/root/ai_forge_bootstrap.log}"
 BOOTSTRAP_ENV_INFO="${BOOTSTRAP_ENV_INFO:-/root/bootstrap_env_info.txt}"
@@ -204,6 +205,11 @@ PY
 
   python -m pip install "tomli==${TOMLI_VERSION}"
 
+  # ComfyUI v0.20.1 accepts comfy-kitchen>=0.2.8, but newer releases use
+  # schema annotations that torch 2.5.1 cannot parse. Pin the cu121 profile
+  # so a future recovery cannot silently drift to an incompatible release.
+  python -m pip install "comfy-kitchen==${COMFY_KITCHEN_VERSION}"
+
   log "[OK] torch stack ready"
 }
 
@@ -217,6 +223,7 @@ run_healthcheck() {
   log "[INFO] cloudflared: $(cloudflared --version 2>/dev/null || echo 'missing')"
 
   python - <<'PY'
+import importlib.metadata
 import torch, torchvision, torchaudio, xformers, tomli
 
 print("torch      =", torch.__version__)
@@ -226,6 +233,7 @@ print("xformers   =", xformers.__version__)
 print("cuda avail =", torch.cuda.is_available())
 print("cuda ver   =", torch.version.cuda)
 print("tomli      =", tomli.__version__)
+print("comfy-kitchen =", importlib.metadata.version("comfy-kitchen"))
 
 if not torch.cuda.is_available():
     raise SystemExit("CUDA is not available in torch")
@@ -257,6 +265,7 @@ TORCHVISION_VERSION=${TORCHVISION_VERSION}
 TORCHAUDIO_VERSION=${TORCHAUDIO_VERSION}
 XFORMERS_VERSION=${XFORMERS_VERSION}
 TOMLI_VERSION=${TOMLI_VERSION}
+COMFY_KITCHEN_VERSION=${COMFY_KITCHEN_VERSION}
 
 CLOUDFLARED_VERSION=$(cloudflared --version 2>/dev/null || echo "missing")
 RCLONE_VERSION=$(rclone version 2>/dev/null | head -n 1 || echo "missing")
