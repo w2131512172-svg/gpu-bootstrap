@@ -16,9 +16,12 @@ from urllib.request import Request, urlopen
 ROOT = Path(__file__).resolve().parent
 STATIC_ROOT = ROOT / "static"
 REPO_ROOT = ROOT.parent
+sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(REPO_ROOT / "core" / "logging"))
 
 from everspark_logging import EverSparkLogger, get_logger  # noqa: E402
+from log_manifest import ManifestError  # noqa: E402
+from runtime_logs import runtime_log_status  # noqa: E402
 
 LOG_DIR = Path(os.environ.get("EVERSPARK_LOG_DIR", "/root/everspark_logs"))
 LOG_FILE = Path(os.environ.get("EVERSPARK_WEBUI_LOG", str(LOG_DIR / "webui.log")))
@@ -162,6 +165,10 @@ class RequestHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         if parsed.path == "/api/health":
             self._health()
+        elif parsed.path == "/api/runtime/status":
+            self._runtime_status()
+        elif parsed.path == "/api/runtime/logs":
+            self._runtime_logs()
         elif parsed.path == "/api/results":
             self._results(parse_qs(parsed.query))
         elif parsed.path == "/api/history":
@@ -221,6 +228,12 @@ class RequestHandler(BaseHTTPRequestHandler):
             self._json(500, {"ok": False, "error": str(exc)})
 
     def _health(self) -> None:
+        self._json(
+            200,
+            {"ok": True, "services": self._collect_service_health()},
+        )
+
+    def _collect_service_health(self) -> dict[str, dict[str, Any]]:
         services: dict[str, dict[str, Any]] = {}
         checks = {
             "orchestrator": (
@@ -238,10 +251,62 @@ class RequestHandler(BaseHTTPRequestHandler):
                 services[name] = {"online": 200 <= status < 300}
             except Exception as exc:
                 services[name] = {"online": False, "error": str(exc)}
+        return services
+
+    def _runtime_status(self) -> None:
+        try:
+            log_status = runtime_log_status()
+        except (ManifestError, OSError) as exc:
+            self._log(
+                "error",
+                "runtime.logs.failed",
+                "Runtime log status could not be collected",
+                error_type=type(exc).__name__,
+                error=str(exc),
+            )
+            self._json(
+                500,
+                {
+                    "ok": False,
+                    "services": self._collect_service_health(),
+                    "logging": {
+                        "ready": False,
+                        "error": "Runtime log manifest is unavailable",
+                    },
+                },
+            )
+            return
         self._json(
             200,
-            {"ok": True, "services": services},
+            {
+                "ok": True,
+                "services": self._collect_service_health(),
+                "logging": {
+                    "ready": True,
+                    "configured": log_status["configured"],
+                    "present": log_status["present"],
+                    "needs_rotation": log_status["needs_rotation"],
+                },
+            },
         )
+
+    def _runtime_logs(self) -> None:
+        try:
+            status = runtime_log_status()
+        except (ManifestError, OSError) as exc:
+            self._log(
+                "error",
+                "runtime.logs.failed",
+                "Runtime log status could not be collected",
+                error_type=type(exc).__name__,
+                error=str(exc),
+            )
+            self._json(
+                500,
+                {"ok": False, "error": "Runtime log manifest is unavailable"},
+            )
+            return
+        self._json(200, {"ok": True, **status})
 
     def _results(self, query: dict[str, list[str]]) -> None:
         prompt_ids = [item for item in query.get("prompt_id", []) if item]

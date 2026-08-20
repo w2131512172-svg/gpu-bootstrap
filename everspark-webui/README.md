@@ -33,6 +33,12 @@ WebUI lifecycle, request failures, and HTTP access records are written to
 `${EVERSPARK_LOG_DIR:-/root/everspark_logs}/webui.log`. Set
 `EVERSPARK_WEBUI_LOG` only when a dedicated path override is required.
 
+Runtime endpoints:
+
+- `GET /api/health`: ComfyUI and Orchestrator compatibility health check.
+- `GET /api/runtime/status`: service state plus managed-log summary.
+- `GET /api/runtime/logs`: manifest-backed log metadata without log contents.
+
 ## Configuration
 
 The defaults match the current repository:
@@ -51,5 +57,7 @@ Environment variables can also override individual settings:
 - `EVERSPARK_WEBUI_REQUEST_TIMEOUT`
 - `EVERSPARK_COMFYUI_TIMEOUT`
 - `EVERSPARK_WEBUI_CONFIG`
+- `EVERSPARK_LOG_DIR`
+- `EVERSPARK_LOG_MANIFEST`
 
 Do not commit credentials or Cloudflare tunnel tokens into this directory.

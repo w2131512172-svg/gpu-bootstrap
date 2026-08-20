@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import sys
+import tempfile
 import threading
 import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.error import HTTPError
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
@@ -105,6 +108,13 @@ class MockUpstreamHandler(BaseHTTPRequestHandler):
 class WebUIIntegrationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
+        cls.log_directory = tempfile.TemporaryDirectory()
+        cls.previous_log_dir = os.environ.get("EVERSPARK_LOG_DIR")
+        os.environ["EVERSPARK_LOG_DIR"] = cls.log_directory.name
+        Path(cls.log_directory.name, "webui.log").write_text(
+            "test runtime log\n",
+            encoding="utf-8",
+        )
         cls.upstream = ThreadingHTTPServer(("127.0.0.1", 0), MockUpstreamHandler)
         upstream_url = f"http://127.0.0.1:{cls.upstream.server_address[1]}"
         cls.webui = app.WebUIServer(
@@ -131,6 +141,11 @@ class WebUIIntegrationTests(unittest.TestCase):
         cls.upstream.shutdown()
         cls.webui.server_close()
         cls.upstream.server_close()
+        if cls.previous_log_dir is None:
+            os.environ.pop("EVERSPARK_LOG_DIR", None)
+        else:
+            os.environ["EVERSPARK_LOG_DIR"] = cls.previous_log_dir
+        cls.log_directory.cleanup()
 
     def get_json(self, path: str) -> dict:
         with urlopen(f"{self.base_url}{path}", timeout=5) as response:
@@ -168,6 +183,37 @@ class WebUIIntegrationTests(unittest.TestCase):
         health = self.get_json("/api/health")
         self.assertTrue(health["services"]["orchestrator"]["online"])
         self.assertTrue(health["services"]["comfyui"]["online"])
+
+    def test_runtime_status_includes_logging_summary(self) -> None:
+        runtime = self.get_json("/api/runtime/status")
+        self.assertTrue(runtime["ok"])
+        self.assertTrue(runtime["logging"]["ready"])
+        self.assertGreater(runtime["logging"]["configured"], 0)
+        self.assertGreaterEqual(runtime["logging"]["present"], 1)
+
+    def test_runtime_logs_follow_manifest(self) -> None:
+        runtime = self.get_json("/api/runtime/logs")
+        self.assertTrue(runtime["ok"])
+        webui = next(item for item in runtime["logs"] if item["id"] == "webui")
+        self.assertTrue(webui["exists"])
+        self.assertEqual(webui["filename"], "webui.log")
+        self.assertNotIn("path", webui)
+
+    def test_runtime_manifest_error_does_not_expose_server_path(self) -> None:
+        missing = str(Path(self.log_directory.name) / "private" / "missing.json")
+        previous = os.environ.get("EVERSPARK_LOG_MANIFEST")
+        os.environ["EVERSPARK_LOG_MANIFEST"] = missing
+        try:
+            with self.assertRaises(HTTPError) as caught:
+                self.get_json("/api/runtime/logs")
+            payload = json.loads(caught.exception.read().decode("utf-8"))
+            self.assertEqual(payload["error"], "Runtime log manifest is unavailable")
+            self.assertNotIn(missing, payload["error"])
+        finally:
+            if previous is None:
+                os.environ.pop("EVERSPARK_LOG_MANIFEST", None)
+            else:
+                os.environ["EVERSPARK_LOG_MANIFEST"] = previous
 
 
 if __name__ == "__main__":
