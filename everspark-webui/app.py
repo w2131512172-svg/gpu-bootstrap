@@ -15,6 +15,13 @@ from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parent
 STATIC_ROOT = ROOT / "static"
+REPO_ROOT = ROOT.parent
+sys.path.insert(0, str(REPO_ROOT / "core" / "logging"))
+
+from everspark_logging import EverSparkLogger, get_logger  # noqa: E402
+
+LOG_DIR = Path(os.environ.get("EVERSPARK_LOG_DIR", "/root/everspark_logs"))
+LOG_FILE = Path(os.environ.get("EVERSPARK_WEBUI_LOG", str(LOG_DIR / "webui.log")))
 
 
 @dataclass(frozen=True)
@@ -138,9 +145,14 @@ def history_status(history_item: dict[str, Any], images: list[dict[str, str]]) -
 class WebUIServer(ThreadingHTTPServer):
     daemon_threads = True
 
-    def __init__(self, settings: Settings):
+    def __init__(
+        self,
+        settings: Settings,
+        logger: EverSparkLogger | None = None,
+    ):
         super().__init__((settings.host, settings.port), RequestHandler)
         self.settings = settings
+        self.logger = logger
 
 
 class RequestHandler(BaseHTTPRequestHandler):
@@ -182,8 +194,15 @@ class RequestHandler(BaseHTTPRequestHandler):
             )
             self._json(status, response)
         except json.JSONDecodeError:
+            self._log("warning", "request.invalid_json", "WebUI request contained invalid JSON")
             self._json(400, {"ok": False, "error": "请求不是有效的 JSON"})
         except (URLError, TimeoutError) as exc:
+            self._log(
+                "warning",
+                "orchestrator.unavailable",
+                "WebUI could not reach Orchestrator",
+                error_type=type(exc).__name__,
+            )
             self._json(
                 502,
                 {
@@ -192,6 +211,13 @@ class RequestHandler(BaseHTTPRequestHandler):
                 },
             )
         except Exception as exc:
+            self._log(
+                "error",
+                "request.failed",
+                "WebUI generation request failed",
+                error_type=type(exc).__name__,
+                error=str(exc),
+            )
             self._json(500, {"ok": False, "error": str(exc)})
 
     def _health(self) -> None:
@@ -370,26 +396,57 @@ class RequestHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def log_message(self, format: str, *args: Any) -> None:
-        print(f"[EverSpark WebUI] {self.address_string()} - {format % args}")
+        self._log(
+            "info",
+            "http.access",
+            "HTTP request completed",
+            client=self.address_string(),
+            request=format % args,
+        )
+
+    def _log(self, level: str, event: str, message: str, **fields: Any) -> None:
+        if self.server.logger is not None:
+            getattr(self.server.logger, level)(event, message, **fields)
 
 
 def main() -> int:
+    logger = get_logger("webui", LOG_FILE)
+    server: WebUIServer | None = None
     try:
         settings = load_settings()
-        server = WebUIServer(settings)
     except (OSError, ValueError, json.JSONDecodeError) as exc:
-        print(f"[ERROR] {exc}", file=sys.stderr)
+        logger.error(
+            "config.invalid",
+            "EverSpark WebUI configuration is invalid",
+            error_type=type(exc).__name__,
+            error=str(exc),
+        )
+        logger.close()
         return 1
-    print("EverSpark WebUI v0.1")
-    print(f"WebUI: http://{settings.host}:{settings.port}")
-    print(f"Orchestrator: {settings.orchestrator_url}")
-    print(f"ComfyUI: {settings.comfyui_url}")
     try:
+        server = WebUIServer(settings, logger)
+        logger.ok(
+            "server.ready",
+            "EverSpark WebUI is ready",
+            host=settings.host,
+            port=settings.port,
+        )
         server.serve_forever()
     except KeyboardInterrupt:
-        print("\nStopping EverSpark WebUI...")
+        logger.info("server.stop.requested", "WebUI shutdown requested")
+    except Exception as exc:
+        logger.error(
+            "server.failed",
+            "EverSpark WebUI server failed",
+            error_type=type(exc).__name__,
+            error=str(exc),
+        )
+        return 1
     finally:
-        server.server_close()
+        if server is not None:
+            server.server_close()
+            logger.ok("server.stopped", "EverSpark WebUI stopped")
+        logger.close()
     return 0
 
 

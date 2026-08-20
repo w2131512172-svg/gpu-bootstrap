@@ -21,18 +21,26 @@ CHECK_COMMON_TOOLS="${FORGE_ROOT}/check_common_tools.sh"
 RESTORE_SCRIPT="${FORGE_ROOT}/restore_from_r2.sh"
 START_ALL_SCRIPT="${FORGE_ROOT}/Ollama_start.sh"
 CLI_INSTALLER="${REPO_ROOT}/core/cli/install.sh"
+LOG_DIR="${EVERSPARK_LOG_DIR:-/root/everspark_logs}"
+RECOVERY_LOG="${RECOVERY_LOG:-${LOG_DIR}/recovery.log}"
+OLLAMA_LIFECYCLE_LOG="${OLLAMA_LIFECYCLE_LOG:-${LOG_DIR}/ollama.log}"
+OLLAMA_SERVICE_LOG="${OLLAMA_SERVICE_LOG:-${OLLAMA_LOG:-${LOG_DIR}/ollama-service.log}}"
+RCLONE_LOG="${RCLONE_LOG:-${LOG_DIR}/rclone.log}"
+
+core_log_init ollama.recovery "$RECOVERY_LOG"
 
 prepare_config() {
   if [ -f "$CONFIG_FILE" ]; then
     chmod 600 "$CONFIG_FILE"
-    core_ok "[Ollama Forge][restore] Config ready: $CONFIG_FILE"
+    core_ok config.ready "Ollama Forge config is ready" "path=$CONFIG_FILE"
     return 0
   fi
 
   core_require_file "$CONFIG_TEMPLATE"
   cp "$CONFIG_TEMPLATE" "$CONFIG_FILE"
   chmod 600 "$CONFIG_FILE"
-  core_ok "[Ollama Forge][restore] Config created: $CONFIG_TEMPLATE -> $CONFIG_FILE"
+  core_ok config.created "Ollama Forge config was created from the template" \
+    "template=$CONFIG_TEMPLATE" "path=$CONFIG_FILE"
 }
 
 run_script() {
@@ -40,13 +48,12 @@ run_script() {
   shift || true
 
   core_require_file "$script"
-  core_info "[Ollama Forge][restore] Running: $script $*"
-  bash "$script" "$@"
+  core_run_step "$(basename "$script")" bash "$script" "$@"
 }
 
 main() {
   core_require_root
-  core_info "[Ollama Forge][restore] Restore started."
+  core_info recovery.start "Ollama Forge recovery started"
 
   run_script "$CLI_INSTALLER"
   prepare_config
@@ -56,10 +63,11 @@ main() {
 
   run_script "$START_ALL_SCRIPT"
 
-  core_ok "[Ollama Forge][restore] Restore completed."
-  core_info "Ollama API: http://127.0.0.1:${OLLAMA_PORT:-11434}"
-  core_info "Ollama log: ${OLLAMA_LOG:-/root/ollama.log}"
-  core_info "Rclone log: ${RCLONE_LOG:-/root/rclone_restore.log}"
+  core_ok recovery.complete "Ollama Forge recovery completed" \
+    "port=${OLLAMA_PORT:-11434}" \
+    "lifecycle_log=$OLLAMA_LIFECYCLE_LOG" \
+    "service_log=$OLLAMA_SERVICE_LOG" \
+    "rclone_log=$RCLONE_LOG"
 }
 
 main "$@"

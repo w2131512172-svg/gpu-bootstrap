@@ -33,6 +33,10 @@ In terminal 1 run `everspark orchestrator start`. In terminal 2 run
 exposes `GET /health`, `POST /tasks`, `GET /context/history`, and
 `POST /context/clear`.
 
+Core lifecycle, request failures, and HTTP access records are written to
+`${EVERSPARK_LOG_DIR:-/root/everspark_logs}/orchestrator.log`. Set
+`ORCHESTRATOR_LOG` only when a dedicated path override is required.
+
 Console commands:
 
 - `/history`: display the current session context.

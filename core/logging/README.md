@@ -82,6 +82,7 @@ The caller migration will converge on:
   bootstrap.log
   comfyui.log
   ollama.log
+  ollama-service.log
   orchestrator.log
   webui.log
   tunnel.log
@@ -91,6 +92,10 @@ The caller migration will converge on:
 ```
 
 WebUI must eventually consume a logical log manifest rather than hard-coding these paths.
+
+`comfyui.log` and `ollama-service.log` contain raw third-party process output.
+The other service files contain EverSpark lifecycle or application records that
+follow the structured logging contract.
 
 ## Security and failure behavior
 
@@ -116,7 +121,7 @@ The tests cover text and JSON output, level filtering, compatibility calls, reda
 - [x] Canonical naming and `EVERSPARK_*` configuration
 - [x] Shell/Python logging foundation and tests
 - [x] Critical recovery path: recovery, service, bootstrap, core restore, dependencies, R2, and tunnel
-- [ ] Long-running services: ComfyUI, Ollama Forge, Orchestrator, WebUI
+- [x] Long-running services: ComfyUI, Ollama Forge, Orchestrator, WebUI
 - [ ] Rotation, retention, log manifest, and status API
 
 Each phase must remain independently runnable. Logging migration must not be combined with unrelated dependency or service changes.

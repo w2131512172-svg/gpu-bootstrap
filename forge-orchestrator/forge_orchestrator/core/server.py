@@ -1,21 +1,37 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from ..config.config import ConfigError, load_config
 from .orchestrator import BusyError, Orchestrator
 
+REPO_ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(REPO_ROOT / "core" / "logging"))
+
+from everspark_logging import EverSparkLogger, get_logger  # noqa: E402
+
+LOG_DIR = Path(os.environ.get("EVERSPARK_LOG_DIR", "/root/everspark_logs"))
+LOG_FILE = Path(os.environ.get("ORCHESTRATOR_LOG", str(LOG_DIR / "orchestrator.log")))
+
 
 class OrchestratorServer(ThreadingHTTPServer):
     daemon_threads = True
 
-    def __init__(self, address: tuple[str, int], orchestrator: Orchestrator):
+    def __init__(
+        self,
+        address: tuple[str, int],
+        orchestrator: Orchestrator,
+        logger: EverSparkLogger | None = None,
+    ):
         super().__init__(address, RequestHandler)
         self.orchestrator = orchestrator
+        self.logger = logger
 
 
 class RequestHandler(BaseHTTPRequestHandler):
@@ -59,14 +75,38 @@ class RequestHandler(BaseHTTPRequestHandler):
                 self.server.orchestrator.clear_context(session_id)
                 self._send(200, {"ok": True, "session_id": session_id})
         except BusyError as exc:
+            self._log("warning", "task.busy", "Task submission rejected because the service is busy")
             self._send(409, {"ok": False, "error": str(exc)})
         except (ValueError, json.JSONDecodeError) as exc:
+            self._log(
+                "warning",
+                "request.invalid",
+                "Invalid Orchestrator request",
+                error_type=type(exc).__name__,
+            )
             self._send(400, {"ok": False, "error": str(exc)})
         except Exception as exc:
+            self._log(
+                "error",
+                "request.failed",
+                "Orchestrator request failed",
+                error_type=type(exc).__name__,
+                error=str(exc),
+            )
             self._send(500, {"ok": False, "error": str(exc)})
 
     def log_message(self, format: str, *args: Any) -> None:
-        print(f"[Orchestrator] {self.address_string()} - {format % args}")
+        self._log(
+            "info",
+            "http.access",
+            "HTTP request completed",
+            client=self.address_string(),
+            request=format % args,
+        )
+
+    def _log(self, level: str, event: str, message: str, **fields: Any) -> None:
+        if self.server.logger is not None:
+            getattr(self.server.logger, level)(event, message, **fields)
 
     def _send(self, status: int, payload: dict[str, Any]) -> None:
         body = json.dumps(payload, ensure_ascii=True).encode("utf-8")
@@ -78,23 +118,44 @@ class RequestHandler(BaseHTTPRequestHandler):
 
 
 def main() -> int:
+    logger = get_logger("orchestrator", LOG_FILE)
+    server: OrchestratorServer | None = None
     try:
         config = load_config()
     except ConfigError as exc:
-        print(f"[ERROR] {exc}", file=sys.stderr)
+        logger.error(
+            "config.invalid",
+            "Orchestrator configuration is invalid",
+            error=str(exc),
+        )
+        logger.close()
         return 1
     host = str(config["orchestrator"]["host"])
     port = int(config["orchestrator"]["port"])
-    server = OrchestratorServer((host, port), Orchestrator(config))
-    print("EverSpark Orchestrator v0.1")
-    print(f"Core API: http://{host}:{port}")
-    print("Status: standby (Ctrl+C to stop)")
     try:
+        server = OrchestratorServer((host, port), Orchestrator(config), logger)
+        logger.ok(
+            "server.ready",
+            "EverSpark Orchestrator is ready",
+            host=host,
+            port=port,
+        )
         server.serve_forever()
     except KeyboardInterrupt:
-        print("\nStopping EverSpark Orchestrator...")
+        logger.info("server.stop.requested", "Orchestrator shutdown requested")
+    except Exception as exc:
+        logger.error(
+            "server.failed",
+            "Orchestrator server failed",
+            error_type=type(exc).__name__,
+            error=str(exc),
+        )
+        return 1
     finally:
-        server.server_close()
+        if server is not None:
+            server.server_close()
+            logger.ok("server.stopped", "EverSpark Orchestrator stopped")
+        logger.close()
     return 0
 
 

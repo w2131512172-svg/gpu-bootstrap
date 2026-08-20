@@ -29,6 +29,10 @@ the first test:
 ssh -L 8780:127.0.0.1:8780 <pod-ssh-target>
 ```
 
+WebUI lifecycle, request failures, and HTTP access records are written to
+`${EVERSPARK_LOG_DIR:-/root/everspark_logs}/webui.log`. Set
+`EVERSPARK_WEBUI_LOG` only when a dedicated path override is required.
+
 ## Configuration
 
 The defaults match the current repository:
