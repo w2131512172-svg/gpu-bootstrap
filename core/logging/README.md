@@ -1,71 +1,79 @@
-# EverSpark Forge logging redesign
+# EverSpark Forge logging
 
-Status: planned  
+Status: foundation implemented; caller migration in progress  
 Scope owner: `core/logging`
 
-## Why this rewrite is needed
+## Contract
 
-The repository currently has one small shared shell helper, but many modules still define their own `log()`, call `echo` or `print` directly, choose independent file paths, and duplicate level labels inside messages. This makes recovery failures hard to correlate and forces callers such as WebUI to know implementation-specific log filenames.
+Shell and Python loggers emit the same fields:
 
-The rewrite must preserve service startup behavior while making every record attributable, searchable, and safe to expose through future status APIs.
+- RFC 3339 timestamp with timezone
+- level: `DEBUG`, `INFO`, `OK`, `WARN`, or `ERROR`
+- component and event
+- human-readable message
+- run ID and process ID
+- optional key/value fields with sensitive values redacted
 
-## Naming and configuration contract
+Text output is optimized for operators:
 
-The canonical product name is **EverSpark Forge**. Module names such as **ComfyUI Forge**, **Ollama Forge**, **Orchestrator**, and **EverSpark WebUI** remain valid.
+```text
+2026-08-21T10:15:30+09:00 INFO  comfyui.recovery step.start run_id=... pid=... message=Step started step=r2_pull
+```
+
+JSON output carries the same fields as native JSON values.
+
+## Configuration
 
 | Setting | Default | Purpose |
 | --- | --- | --- |
 | `EVERSPARK_LOG_DIR` | `/root/everspark_logs` | Root directory for managed logs |
 | `EVERSPARK_LOG_LEVEL` | `INFO` | Minimum emitted level |
-| `EVERSPARK_LOG_FORMAT` | `text` | `text` for operators, `json` for ingestion |
-| `EVERSPARK_RUN_ID` | generated per recovery/start run | Correlates records across scripts and services |
+| `EVERSPARK_LOG_FORMAT` | `text` | `text` or `json` |
+| `EVERSPARK_RUN_ID` | generated | Correlates one recovery/start run |
 | `EVERSPARK_LOG_CONSOLE` | `1` | Mirrors managed records to the console |
 
-All product-owned configuration must use the `EVERSPARK_*` namespace; historical brand and variable prefixes are forbidden.
+All product-owned configuration uses the `EVERSPARK_*` namespace.
 
-## Record contract
+## Shell API
 
-Every managed record must contain:
+Source `core/logging/log.sh`, then initialize a component:
 
-- RFC 3339 timestamp with timezone
-- level: `DEBUG`, `INFO`, `OK`, `WARN`, or `ERROR`
-- component, for example `comfyui.recovery`, `r2.pull`, or `tunnel`
-- event name suitable for filtering
-- message intended for humans
-- run ID and process ID
-- optional key/value fields with secrets redacted
-
-Text output should remain concise:
-
-```text
-2026-08-21T10:15:30+09:00 INFO  comfyui.recovery step.start run_id=... step=r2_pull
+```bash
+core_log_init comfyui.recovery "${EVERSPARK_LOG_DIR}/recovery.log"
+core_info recovery.start "Recovery started" "profile=$TORCH_PROFILE"
+core_run_step restore.core bash "$SCRIPT_DIR/restore_comfyui_core.sh"
 ```
 
-JSON output must carry the same fields rather than embedding level or component labels in the message.
-
-## Public APIs
-
-### Shell
-
-`core/logging/log.sh` will own:
+The public functions are:
 
 - `core_log_init COMPONENT [LOG_FILE]`
 - `core_debug|core_info|core_ok|core_warn|core_error EVENT MESSAGE [key=value ...]`
-- `core_step_start|core_step_end`
+- `core_step_start NAME [key=value ...]`
+- `core_step_end NAME [ok|failed] [key=value ...]`
 - `core_run_step NAME COMMAND...`
-- `core_die EVENT MESSAGE`
+- `core_die EVENT MESSAGE [key=value ...]`
 
-Callers must stop defining local timestamp, `log()`, `die()`, and separator implementations.
+Existing one-argument calls such as `core_info "Config loaded"` remain supported and emit the event `message`. This compatibility form should disappear as callers are migrated.
 
-### Python
+## Python API
 
-Add a Python adapter under `core/logging` using the standard `logging` package. It must emit the same record contract and read the same `EVERSPARK_*` settings. WebUI and Orchestrator HTTP access logs must use this adapter instead of `print()`.
+`core/logging/everspark_logging.py` uses the standard `logging` package with the shared contract:
 
-Shell and Python implementations share a contract, not a process or IPC dependency.
+```python
+from everspark_logging import get_logger
 
-## File layout
+logger = get_logger(
+    "orchestrator",
+    "/root/everspark_logs/orchestrator.log",
+)
+logger.info("server.ready", "Server is ready", port=8765)
+```
 
-The first implementation should keep operational files simple:
+Call `logger.close()` during orderly service shutdown so file handlers are released immediately.
+
+## Managed file layout
+
+The caller migration will converge on:
 
 ```text
 /root/everspark_logs/
@@ -79,33 +87,33 @@ The first implementation should keep operational files simple:
   r2.log
 ```
 
-A later status API may expose a manifest of logical log names. WebUI must not hard-code physical paths.
+WebUI must eventually consume a logical log manifest rather than hard-coding these paths.
+
+## Security and failure behavior
+
+- Field names containing credential, authorization, cookie, password, secret, token, or API-key terms are redacted.
+- Matching `key=value` secrets embedded in messages are also redacted.
+- Log directories and files are created with modes `0750` and `0640` where supported.
+- `ERROR` records go to stderr; other console records go to stdout in the shell adapter.
+- A file append failure is reported to stderr without replacing the original command status.
+- Tokens, full environment dumps, authorization headers, and private rclone configuration must never be deliberately logged.
+
+## Tests
+
+Run both adapters' tests with:
+
+```bash
+bash core/logging/tests/run_tests.sh
+```
+
+The tests cover text and JSON output, level filtering, compatibility calls, redaction, step results, invalid configuration, and file permissions.
 
 ## Migration phases
 
-1. **Canonical naming** — remove historical names and move configuration to `EVERSPARK_*`.
-2. **Logging foundation** — rewrite the shell helper, add the Python adapter, record formatter, redaction, and unit tests.
-3. **Critical recovery path** — migrate bootstrap, `comfy_start.sh`, `start_all.sh`, dependency repair, R2, and tunnel scripts.
-4. **Long-running services** — migrate Ollama Forge, Orchestrator, and EverSpark WebUI; separate access logs from application events where useful.
-5. **Operations** — add rotation/retention, a log manifest/status API, and documentation for collection.
+- [x] Canonical naming and `EVERSPARK_*` configuration
+- [x] Shell/Python logging foundation and tests
+- [ ] Critical recovery path: bootstrap, recovery, dependencies, R2, tunnel
+- [ ] Long-running services: ComfyUI, Ollama Forge, Orchestrator, WebUI
+- [ ] Rotation, retention, log manifest, and status API
 
-Each phase must be independently runnable. Do not combine a logging-behavior rewrite with unrelated dependency or service changes.
-
-## Safety rules
-
-- Never log tokens, credentials, full environment dumps, authorization headers, or private rclone configuration.
-- Errors go to stderr while optionally being mirrored to the configured file.
-- Logging failure must not silently hide the original command failure.
-- Directory creation is centralized and uses restrictive permissions.
-- Background services keep stdout/stderr capture, but lifecycle events go through the managed logger.
-- Existing operators get an explicit migration note when a path or environment variable changes.
-
-## Acceptance criteria
-
-- Repository search finds no historical product names or variable prefixes.
-- ShellCheck and `bash -n` pass for migrated shell files.
-- Python logging tests cover text/JSON formats, level filtering, redaction, and invalid configuration.
-- A single recovery run has one run ID from bootstrap through service startup.
-- Every critical step emits paired start/end events with duration and exit status.
-- WebUI and Orchestrator no longer use raw `print()` for operational logging.
-- Rotation/retention prevents unbounded disk growth.
+Each phase must remain independently runnable. Logging migration must not be combined with unrelated dependency or service changes.
