@@ -1,69 +1,54 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ============================================================
-# EverSpark Forge - Restore ComfyUI Core
-# Responsibility:
-#   Restore rebuildable ComfyUI core source only.
-#
-# Does NOT:
-#   - pull R2 assets
-#   - install custom node deps
-#   - start ComfyUI
-#   - start Cloudflare Tunnel
-# ============================================================
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/core/logging/log.sh"
 
 COMFYUI_ROOT="${COMFYUI_ROOT:-/root/ComfyUI}"
 COMFYUI_REPO="${COMFYUI_REPO:-https://github.com/Comfy-Org/ComfyUI.git}"
 COMFYUI_VERSION="${COMFYUI_VERSION:-v0.20.1}"
 
 LOG_DIR="${EVERSPARK_LOG_DIR:-/root/everspark_logs}"
-LOG_FILE="${COMFYUI_CORE_LOG:-$LOG_DIR/comfyui_core_restore.log}"
+LOG_FILE="${COMFYUI_CORE_LOG:-${CORE_LOG_FILE:-${LOG_DIR}/recovery.log}}"
 CORE_INFO_FILE="${COMFYUI_CORE_INFO_FILE:-/root/comfyui_core_info.txt}"
 
-mkdir -p "$LOG_DIR"
+core_log_init comfyui.restore "$LOG_FILE"
 
-log() {
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE"
-}
+core_info restore.start "Restoring ComfyUI core" \
+  "root=$COMFYUI_ROOT" "repository=$COMFYUI_REPO" "version=$COMFYUI_VERSION"
 
-die() {
-  log "[ERROR] $*"
+if ! command -v git >/dev/null 2>&1; then
+  core_die git.missing "Git command was not found"
   exit 1
-}
-
-section() {
-  log "============================================================"
-  log "$*"
-  log "============================================================"
-}
-
-section "EverSpark Forge ComfyUI core restore started"
-log "COMFYUI_ROOT=$COMFYUI_ROOT"
-log "COMFYUI_REPO=$COMFYUI_REPO"
-log "COMFYUI_VERSION=$COMFYUI_VERSION"
-log "LOG_FILE=$LOG_FILE"
-
-command -v git >/dev/null 2>&1 || die "git command not found"
+fi
 
 if [ -d "$COMFYUI_ROOT/.git" ]; then
-  log "[OK] existing ComfyUI git repo found: $COMFYUI_ROOT"
+  core_ok restore.repository.ready "Existing ComfyUI repository found" "root=$COMFYUI_ROOT"
 elif [ -e "$COMFYUI_ROOT" ]; then
-  die "COMFYUI_ROOT exists but is not a git repo: $COMFYUI_ROOT"
+  core_die restore.path.invalid "ComfyUI root exists but is not a Git repository" \
+    "root=$COMFYUI_ROOT"
+  exit 1
 else
-  log "[INFO] cloning ComfyUI core..."
-  git clone "$COMFYUI_REPO" "$COMFYUI_ROOT" 2>&1 | tee -a "$LOG_FILE"
+  core_info restore.clone "Cloning ComfyUI core" "repository=$COMFYUI_REPO"
+  git clone "$COMFYUI_REPO" "$COMFYUI_ROOT"
 fi
 
 cd "$COMFYUI_ROOT"
 
-log "[INFO] fetching tags..."
-git fetch --tags 2>&1 | tee -a "$LOG_FILE"
+core_info restore.fetch "Fetching ComfyUI tags"
+git fetch --tags
 
-log "[INFO] checking out ComfyUI version: $COMFYUI_VERSION"
-git checkout "$COMFYUI_VERSION" 2>&1 | tee -a "$LOG_FILE"
+core_info restore.checkout "Checking out ComfyUI version" "version=$COMFYUI_VERSION"
+git checkout "$COMFYUI_VERSION"
 
-[ -f "$COMFYUI_ROOT/main.py" ] || die "ComfyUI main.py missing after checkout: $COMFYUI_ROOT/main.py"
+if [ ! -f "$COMFYUI_ROOT/main.py" ]; then
+  core_die restore.entrypoint.missing "ComfyUI entrypoint is missing after checkout" \
+    "path=$COMFYUI_ROOT/main.py"
+  exit 1
+fi
 
 CURRENT_COMMIT="$(git rev-parse HEAD)"
 CURRENT_REF="$(git describe --tags --always 2>/dev/null || git rev-parse --short HEAD)"
@@ -79,8 +64,5 @@ CURRENT_REF=$CURRENT_REF
 CURRENT_COMMIT=$CURRENT_COMMIT
 EOF
 
-log "[OK] ComfyUI core ready"
-log "[INFO] current ref: $CURRENT_REF"
-log "[INFO] current commit: $CURRENT_COMMIT"
-log "[OK] core info written: $CORE_INFO_FILE"
-section "EverSpark Forge ComfyUI core restore completed"
+core_ok restore.complete "ComfyUI core is ready" \
+  "ref=$CURRENT_REF" "commit=$CURRENT_COMMIT" "info_file=$CORE_INFO_FILE"

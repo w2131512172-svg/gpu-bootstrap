@@ -113,7 +113,7 @@ The tests cover text and JSON output, level filtering, compatibility calls, reda
 
 - [x] Canonical naming and `EVERSPARK_*` configuration
 - [x] Shell/Python logging foundation and tests
-- [ ] Critical recovery path: recovery and service entrypoints migrated; bootstrap, dependencies, R2, and tunnel pending
+- [ ] Critical recovery path: recovery, service, bootstrap, core restore, and dependencies migrated; R2 and tunnel pending
 - [ ] Long-running services: ComfyUI, Ollama Forge, Orchestrator, WebUI
 - [ ] Rotation, retention, log manifest, and status API
 

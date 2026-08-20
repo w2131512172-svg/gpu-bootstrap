@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 import os
 import sys
-from datetime import datetime
 from pathlib import Path
 
 from scanner.scan_requirements import scan_requirements
@@ -20,6 +19,11 @@ from installer.runner import install_all, install_comfyui_requirements
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SCRIPT_DIR.parents[1]
+sys.path.insert(0, str(REPO_ROOT / "core" / "logging"))
+
+from everspark_logging import EverSparkLogger, get_logger  # noqa: E402
+
 COMFYUI_ROOT = Path(os.environ.get("EVERSPARK_COMFYUI_ROOT", "/root/ComfyUI")).resolve()
 CUSTOM_NODES = COMFYUI_ROOT / "custom_nodes"
 
@@ -28,39 +32,19 @@ OUT_SKIPPED = SCRIPT_DIR / "custom_nodes.skipped.txt"
 MANUAL_REQUIREMENTS = SCRIPT_DIR / "manual_requirements.txt"
 COMPAT_REQUIREMENTS = SCRIPT_DIR / "compat_requirements.txt"
 
-LOG_DIR = Path("/root/everspark_logs")
+LOG_DIR = Path(os.environ.get("EVERSPARK_LOG_DIR", "/root/everspark_logs"))
 LOG_FILE = LOG_DIR / "auto_deps.log"
+LOGGER: EverSparkLogger | None = None
 
 
-class Tee:
-    def __init__(self, *streams):
-        self.streams = streams
-
-    def write(self, data):
-        for stream in self.streams:
-            stream.write(data)
-            stream.flush()
-
-    def flush(self):
-        for stream in self.streams:
-            stream.flush()
-
-
-def setup_logging() -> None:
-    LOG_DIR.mkdir(parents=True, exist_ok=True)
-
-    log_fp = open(LOG_FILE, "a", encoding="utf-8")
-
-    sys.stdout = Tee(sys.__stdout__, log_fp)
-    sys.stderr = Tee(sys.__stderr__, log_fp)
-
-    print("=" * 60)
-    print("[auto_deps] START:", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-    print("[auto_deps] LOG:", LOG_FILE)
+def setup_logging() -> EverSparkLogger:
+    return get_logger("dependencies.auto", LOG_FILE)
 
 
 def log(*parts: object) -> None:
-    print("[auto_deps]", *parts)
+    if LOGGER is None:
+        raise RuntimeError("logger is not initialized")
+    LOGGER.info("dependency.progress", " ".join(str(part) for part in parts))
 
 
 def read_requirements_file(path: Path) -> list[str]:
@@ -141,31 +125,22 @@ def build_install_plan(clean: list[str]) -> tuple[list[str], list[str]]:
 
 
 def print_repair_summary(modules: list[str], packages: list[str], *, installed: bool) -> None:
-    print("=" * 60)
-    print("[auto_deps] EverSpark Forge repair-log summary")
-    print("[auto_deps] missing modules:", len(modules))
-
-    if modules:
-        print("[auto_deps] modules:")
-        for module in modules:
-            print(" -", module)
-
-    print("[auto_deps] mapped pip packages:", len(packages))
-    if packages:
-        for pkg in packages:
-            print(" +", pkg)
-
     if packages and installed:
-        print("[auto_deps] status: repaired on this temporary Pod")
-        print("[auto_deps] please solidify these packages later into:")
-        print(f"[auto_deps] {MANUAL_REQUIREMENTS}")
+        status = "installed"
     elif packages:
-        print("[auto_deps] status: repair packages detected but not installed")
-        print("[auto_deps] rerun with --repair-install to install them")
+        status = "detected"
     else:
-        print("[auto_deps] status: no ModuleNotFoundError repair package detected")
+        status = "not_needed"
 
-    print("=" * 60)
+    assert LOGGER is not None
+    LOGGER.info(
+        "dependency.repair.summary",
+        "Dependency repair summary",
+        missing_modules=modules,
+        packages=packages,
+        status=status,
+        manual_requirements=str(MANUAL_REQUIREMENTS),
+    )
 
 
 def parse_args() -> argparse.Namespace:
@@ -201,69 +176,93 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
-    setup_logging()
+    global LOGGER
+    LOGGER = setup_logging()
 
-    args = parse_args()
+    try:
+        args = parse_args()
 
-    log("script:", SCRIPT_DIR)
-    log("root:", COMFYUI_ROOT)
-    log("python:", sys.executable)
+        LOGGER.info(
+            "dependency.start",
+            "Dependency orchestration started",
+            script=str(SCRIPT_DIR),
+            root=str(COMFYUI_ROOT),
+            python=sys.executable,
+        )
 
-    if args.repair_log:
-        log_path = Path(args.repair_log)
-        log("mode: repair-log")
-        log("repair-log:", log_path)
+        if args.repair_log:
+            log_path = Path(args.repair_log)
+            log("mode: repair-log")
+            log("repair-log:", log_path)
 
-        modules = dedupe_keep_order(scan_missing_modules(log_path))
-        log("missing modules:", len(modules))
+            modules = dedupe_keep_order(scan_missing_modules(log_path))
+            log("missing modules:", len(modules))
 
-        packages = repair_from_modules(modules)
-        packages = dedupe_keep_order(packages)
-        log("repair packages:", len(packages))
+            packages = repair_from_modules(modules)
+            packages = dedupe_keep_order(packages)
+            log("repair packages:", len(packages))
 
-        installed = False
+            installed = False
 
-        if args.repair_install:
-            if packages:
-                log("installing repair packages only")
-                normal, git = split_normal_git(packages)
-                install_all(
-                    normal,
-                    git,
-                    upgrade_tools=not args.no_upgrade_tools,
-                )
-                installed = True
-            else:
-                log("no repair packages to install")
+            if args.repair_install:
+                if packages:
+                    log("installing repair packages only")
+                    normal, git = split_normal_git(packages)
+                    install_all(
+                        normal,
+                        git,
+                        upgrade_tools=not args.no_upgrade_tools,
+                    )
+                    installed = True
+                else:
+                    log("no repair packages to install")
 
-        print_repair_summary(modules, packages, installed=installed)
-        log("DONE repair-log")
-        return
+            print_repair_summary(modules, packages, installed=installed)
+            LOGGER.ok("dependency.complete", "Dependency repair-log mode completed", mode="repair-log")
+            return
 
-    if args.scan_only:
-        log("mode: scan-only")
-        rescan()
-        log("DONE scan-only")
-        return
+        if args.scan_only:
+            log("mode: scan-only")
+            rescan()
+            LOGGER.ok("dependency.complete", "Dependency scan completed", mode="scan-only")
+            return
 
-    if args.rescan:
-        log("mode: rescan")
-        clean, _ = rescan()
-    else:
-        log("mode: default")
-        clean = load_existing_clean()
+        if args.rescan:
+            log("mode: rescan")
+            clean, _ = rescan()
+        else:
+            log("mode: default")
+            clean = load_existing_clean()
 
-    normal, git = build_install_plan(clean)
+        normal, git = build_install_plan(clean)
 
-    install_comfyui_requirements(COMFYUI_ROOT)
+        install_comfyui_requirements(COMFYUI_ROOT)
 
-    install_all(
-        normal,
-        git,
-        upgrade_tools=not args.no_upgrade_tools,
-    )
+        install_all(
+            normal,
+            git,
+            upgrade_tools=not args.no_upgrade_tools,
+        )
 
-    log("DONE")
+        LOGGER.ok("dependency.complete", "Dependency installation completed", mode="default")
+    except SystemExit as exc:
+        if exc.code not in (None, 0):
+            LOGGER.error(
+                "dependency.failed",
+                "Dependency orchestration stopped",
+                exit_code=exc.code,
+            )
+        raise
+    except Exception as exc:
+        LOGGER.error(
+            "dependency.failed",
+            "Dependency orchestration failed",
+            error_type=type(exc).__name__,
+            error=str(exc),
+        )
+        raise
+    finally:
+        LOGGER.close()
 
 
 if __name__ == "__main__":

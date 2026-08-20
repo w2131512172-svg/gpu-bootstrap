@@ -47,7 +47,8 @@ INSTALL_XFORMERS="${INSTALL_XFORMERS:-0}"
 XFORMERS_VERSION="${XFORMERS_VERSION:-}"
 TOMLI_VERSION="${TOMLI_VERSION:-2.0.1}"
 
-BOOTSTRAP_LOG="${BOOTSTRAP_LOG:-/root/everspark_bootstrap.log}"
+LOG_DIR="${EVERSPARK_LOG_DIR:-/root/everspark_logs}"
+BOOTSTRAP_LOG="${BOOTSTRAP_LOG:-${LOG_DIR}/bootstrap.log}"
 BOOTSTRAP_ENV_INFO="${BOOTSTRAP_ENV_INFO:-/root/bootstrap_env_info.txt}"
 
 export DEBIAN_FRONTEND=noninteractive
@@ -70,63 +71,49 @@ APT_PACKAGES=(
   jq
 )
 
-CORE_LOG_FILE="$BOOTSTRAP_LOG"
-export CORE_LOG_FILE
-
-log() {
-  core_info "$@"
-}
-
-die() {
-  core_error "$@"
-  exit 1
-}
-
-section() {
-  core_section "$@"
-}
+core_log_init comfyui.bootstrap.cu128 "$BOOTSTRAP_LOG"
 
 preflight_check() {
-  section "[1/8] preflight check"
+  core_info bootstrap.section "[1/8] preflight check"
 
   core_check_linux_x86_64
   core_gpu_require_nvidia_smi
 
   local cuda_ver
   cuda_ver="$(core_gpu_driver_cuda_version)"
-  [ -n "$cuda_ver" ] || die "Cannot detect CUDA version from nvidia-smi"
+  [ -n "$cuda_ver" ] || core_die bootstrap.failed "Cannot detect CUDA version from nvidia-smi"
 
   core_version_ge "$cuda_ver" "$REQUIRED_CUDA" \
-    || die "CUDA too low: detected=$cuda_ver required>=$REQUIRED_CUDA"
+    || core_die bootstrap.failed "CUDA too low: detected=$cuda_ver required>=$REQUIRED_CUDA"
 
-  log "[OK] CUDA driver version detected: $cuda_ver"
+  core_ok bootstrap.status "CUDA driver version detected: $cuda_ver"
 }
 
 install_apt_packages() {
-  section "[2/8] apt packages"
+  core_info bootstrap.section "[2/8] apt packages"
   core_apt_install_missing "${APT_PACKAGES[@]}"
 }
 
 install_cloudflared() {
-  section "[3/8] cloudflared"
+  core_info bootstrap.section "[3/8] cloudflared"
   core_cloudflared_install
 }
 
 ensure_conda() {
-  section "[4/8] ensure conda"
+  core_info bootstrap.section "[4/8] ensure conda"
 
   if command -v conda >/dev/null 2>&1; then
-    log "[OK] conda found: $(command -v conda)"
+    core_ok bootstrap.status "conda found: $(command -v conda)"
     return 0
   fi
 
   if [ -x "${MINICONDA_DIR}/bin/conda" ]; then
-    log "[OK] existing Miniconda found: ${MINICONDA_DIR}"
+    core_ok bootstrap.status "existing Miniconda found: ${MINICONDA_DIR}"
     export PATH="${MINICONDA_DIR}/bin:${PATH}"
     return 0
   fi
 
-  log "[INFO] installing Miniconda to: ${MINICONDA_DIR}"
+  core_info bootstrap.status "installing Miniconda to: ${MINICONDA_DIR}"
 
   mkdir -p /tmp/miniconda_install
   pushd /tmp/miniconda_install >/dev/null
@@ -138,11 +125,11 @@ ensure_conda() {
   popd >/dev/null
 
   export PATH="${MINICONDA_DIR}/bin:${PATH}"
-  log "[OK] Miniconda installed"
+  core_ok bootstrap.status "Miniconda installed"
 }
 
 ensure_conda_env() {
-  section "[5/8] conda env"
+  core_info bootstrap.section "[5/8] conda env"
 
   # shellcheck disable=SC1091
   source "$(conda info --base)/etc/profile.d/conda.sh"
@@ -151,24 +138,24 @@ ensure_conda_env() {
   conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r || true
 
   if conda env list | awk '{print $1}' | grep -qx "$ENV_NAME"; then
-    log "[OK] conda env already exists: $ENV_NAME"
+    core_ok bootstrap.status "conda env already exists: $ENV_NAME"
   else
-    log "[INFO] creating conda env: $ENV_NAME python=$PY_VER"
+    core_info bootstrap.status "creating conda env: $ENV_NAME python=$PY_VER"
     conda create -y -n "$ENV_NAME" "python=${PY_VER}"
-    log "[OK] conda env created: $ENV_NAME"
+    core_ok bootstrap.status "conda env created: $ENV_NAME"
   fi
 
   conda activate "$ENV_NAME"
-  log "[OK] conda env activated: $ENV_NAME"
-  log "[INFO] python: $(python --version)"
+  core_ok bootstrap.status "conda env activated: $ENV_NAME"
+  core_info bootstrap.status "python: $(python --version)"
 }
 
 install_torch_stack() {
-  section "[6/8] torch stack"
+  core_info bootstrap.section "[6/8] torch stack"
 
   python -m pip install -U pip setuptools wheel
 
-  log "[INFO] uninstalling old torch/xformers stack if present"
+  core_info bootstrap.status "uninstalling old torch/xformers stack if present"
   python -m pip uninstall -y torch torchvision torchaudio xformers >/dev/null 2>&1 || true
 
   local torch_pkgs=(torch torchvision torchaudio)
@@ -177,34 +164,34 @@ install_torch_stack() {
   [ -n "$TORCHVISION_VERSION" ] && torch_pkgs[1]="torchvision==${TORCHVISION_VERSION}"
   [ -n "$TORCHAUDIO_VERSION" ] && torch_pkgs[2]="torchaudio==${TORCHAUDIO_VERSION}"
 
-  log "[INFO] installing torch stack from: $TORCH_INDEX_URL"
+  core_info bootstrap.status "installing torch stack from: $TORCH_INDEX_URL"
   python -m pip install --index-url "$TORCH_INDEX_URL" "${torch_pkgs[@]}"
 
   if [ "$INSTALL_XFORMERS" = "1" ]; then
     if [ -n "$XFORMERS_VERSION" ]; then
-      log "[INFO] installing xformers=$XFORMERS_VERSION"
+      core_info bootstrap.status "installing xformers=$XFORMERS_VERSION"
       python -m pip install "xformers==${XFORMERS_VERSION}"
     else
-      log "[INFO] installing latest compatible xformers"
+      core_info bootstrap.status "installing latest compatible xformers"
       python -m pip install xformers
     fi
   else
-    log "[INFO] skipping xformers for cu128 profile; ComfyUI will use pytorch attention"
+    core_info bootstrap.status "skipping xformers for cu128 profile; ComfyUI will use pytorch attention"
   fi
 
   python -m pip install "tomli==${TOMLI_VERSION}"
 
-  log "[OK] torch stack ready"
+  core_ok bootstrap.status "torch stack ready"
 }
 
 run_healthcheck() {
-  section "[7/8] healthcheck"
+  core_info bootstrap.section "[7/8] healthcheck"
 
-  command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi || log "[WARN] nvidia-smi not found"
+  command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi || core_warn bootstrap.status "nvidia-smi not found"
 
-  log "[INFO] ffmpeg: $(ffmpeg -version 2>/dev/null | head -n 1 || echo 'missing')"
-  log "[INFO] rclone: $(rclone version 2>/dev/null | head -n 1 || echo 'missing')"
-  log "[INFO] cloudflared: $(cloudflared --version 2>/dev/null || echo 'missing')"
+  core_info bootstrap.status "ffmpeg: $(ffmpeg -version 2>/dev/null | head -n 1 || echo 'missing')"
+  core_info bootstrap.status "rclone: $(rclone version 2>/dev/null | head -n 1 || echo 'missing')"
+  core_info bootstrap.status "cloudflared: $(cloudflared --version 2>/dev/null || echo 'missing')"
 
   python - <<'PY'
 import importlib.util
@@ -232,11 +219,11 @@ x = torch.randn(1, device="cuda")
 print("cuda tensor=", x)
 PY
 
-  log "[OK] healthcheck passed"
+  core_ok bootstrap.status "healthcheck passed"
 }
 
 write_env_info() {
-  section "[8/8] write env info"
+  core_info bootstrap.section "[8/8] write env info"
 
   local cuda_driver torch_version torch_cuda torchvision_version torchaudio_version xformers_version
   cuda_driver="$(nvidia-smi 2>/dev/null | sed -n 's/.*CUDA Version: \([0-9.]*\).*/\1/p' | head -n 1 || true)"
@@ -294,20 +281,20 @@ RCLONE_VERSION=$(rclone version 2>/dev/null | head -n 1 || echo "missing")
 FFMPEG_VERSION=$(ffmpeg -version 2>/dev/null | head -n 1 || echo "missing")
 EOF
 
-  log "[OK] env info written: $BOOTSTRAP_ENV_INFO"
+  core_ok bootstrap.status "env info written: $BOOTSTRAP_ENV_INFO"
 }
 
 setup_shell_env() {
-  section "[9/9] shell setup"
+  core_info bootstrap.section "[9/9] shell setup"
 
   bash "${SCRIPT_DIR}/environment.sh" cleanup
-  log "[OK] terminal auto-activation disabled; use: everspark comfy shell"
+  core_ok bootstrap.status "terminal auto-activation disabled; use: everspark comfy shell"
 }
 
 main() {
   : > "$BOOTSTRAP_LOG"
 
-  section "EverSpark Forge Bootstrap V2 cu128 started"
+  core_info bootstrap.section "EverSpark Forge Bootstrap V2 cu128 started"
 
   preflight_check
   install_apt_packages
@@ -319,8 +306,8 @@ main() {
   write_env_info
   setup_shell_env
 
-  section "EverSpark Forge Bootstrap V2 cu128 completed"
-  log "[OK] DONE."
+  core_info bootstrap.section "EverSpark Forge Bootstrap V2 cu128 completed"
+  core_ok bootstrap.status "DONE."
 }
 
 main "$@"

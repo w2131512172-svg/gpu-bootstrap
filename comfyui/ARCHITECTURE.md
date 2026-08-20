@@ -653,7 +653,7 @@ start_all.sh status
 /root/everspark_logs/r2_pull.log
 /root/everspark_logs/r2_push.log
 /root/everspark_logs/auto_deps.log
-/root/everspark_bootstrap.log
+/root/everspark_logs/bootstrap.log
 ```
 
 排查顺序建议：
@@ -661,7 +661,7 @@ start_all.sh status
 ```text
 recovery.log
   ↓
-everspark_bootstrap.log
+bootstrap.log
   ↓
 r2_pull.log
   ↓
@@ -693,7 +693,7 @@ start_all.log
 看：
 
 ```text
-/root/everspark_bootstrap.log
+/root/everspark_logs/bootstrap.log
 /root/bootstrap_env_info.txt
 ```
 
