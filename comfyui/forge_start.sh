@@ -230,14 +230,6 @@ run_step \
   bash "$SCRIPT_DIR/restore_comfyui_core.sh"
 
 run_step \
-  "R2 self-check" \
-  bash "$SCRIPT_DIR/r2-sync/check_r2.sh"
-
-run_step \
-  "R2 asset pull" \
-  bash "$SCRIPT_DIR/r2-sync/pull_from_r2.sh"
-
-run_step \
   "dependency self-check" \
   bash "$SCRIPT_DIR/deps/check_deps.sh"
 
